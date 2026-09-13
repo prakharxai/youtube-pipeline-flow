@@ -13,6 +13,8 @@ const STAGE_SPECS = {
     category: "Ingestion Config",
     type: "GLOBAL",
     color: "#3b82f6",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Configured channels (PIB India, Sansad TV, @NarendraModi) monitored with zero failure guarantees.",
     description: "Loads and validates active YouTube channel configurations from YAML files. Configures channel ID, handle, friendly name, and category tags.",
     inputs: "config/channels.yaml, config/settings.yaml",
     outputs: "List of validated ChannelConfig Pydantic objects",
@@ -34,6 +36,8 @@ const STAGE_SPECS = {
     category: "Discovery",
     type: "ALL FLOWS",
     color: "#3b82f6",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Live multi-channel catalog for 2026-09-12 showing 28 cataloged activities across Videos, Shorts, and Live.",
     description: "Scans YouTube channels across multiple tabs (/videos, /shorts, /community, /streams) using yt-dlp flat-playlist extraction and metadata scraping.",
     inputs: "Channel URL, target date, date range filter, max items limits",
     outputs: "Raw activity metadata entries (video ID, title, publication timestamp, channel metadata)",
@@ -56,6 +60,8 @@ const STAGE_SPECS = {
     category: "Ingestion Gate",
     type: "ALL FLOWS",
     color: "#06b6d4",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Date-range selector matching items published on 2026-09-12 with precision filtering.",
     description: "Strictly filters discovered activities by comparing publication timestamps against the requested UTC single date or date range.",
     inputs: "Raw activity published_at, target_date (YYYY-MM-DD), or from_date -> to_date range",
     outputs: "Filtered list of activities within the target temporal window",
@@ -75,6 +81,8 @@ const STAGE_SPECS = {
     category: "Ingestion Gate",
     type: "IDEMPOTENCY",
     color: "#8b5cf6",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Deduplication ensures 28 distinct items are processed with 0 redundant re-executions.",
     description: "Guarantees idempotency. Checks state/items/{item_id}.json to determine whether an item has already been successfully analyzed, failed, or requires reprocessing.",
     inputs: "item_id, force_reprocess flag, existing state files",
     outputs: "Boolean gate decision: PROCESS vs SKIP",
@@ -96,6 +104,8 @@ const STAGE_SPECS = {
     category: "Processing",
     type: "VIDEO, SHORT, LIVE",
     color: "#ec4899",
+    demoImage: "assets/01_analytics_dashboard.png",
+    demoCaption: "High-speed download and audio extraction tracked in stage telemetry.",
     description: "Downloads the highest efficiency compressed audio stream (Opus / m4a / webm) via yt-dlp to minimize disk I/O and network bandwidth.",
     inputs: "YouTube item URL, target output path, download bitrate flags",
     outputs: "Local compressed audio stream in raw storage",
@@ -117,6 +127,8 @@ const STAGE_SPECS = {
     category: "Processing",
     type: "VIDEO, SHORT, LIVE",
     color: "#ec4899",
+    demoImage: "assets/01_analytics_dashboard.png",
+    demoCaption: "FFmpeg 16kHz audio conversion ensures consistent speech recognition across channels.",
     description: "Converts the raw audio stream to standard 16kHz mono 16-bit PCM WAV using FFmpeg for optimal input to faster-whisper and Silero VAD.",
     inputs: "data/raw/{item_id}/audio.opus",
     outputs: "data/raw/{item_id}/audio_16k.wav",
@@ -137,6 +149,8 @@ const STAGE_SPECS = {
     category: "Processing",
     type: "COMMUNITY POST",
     color: "#8b5cf6",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Community posts extracted directly with zero audio overhead and image attachments.",
     description: "Extracts community post body text, attached image carousels, poll options, and external hyperlinks without requiring audio extraction or speech-to-text.",
     inputs: "Community post URL, post element HTML or InnerTube API response",
     outputs: "Extracted post content, image attachment URLs, and status code",
@@ -158,6 +172,8 @@ const STAGE_SPECS = {
     category: "Processing",
     type: "LIVE STREAM",
     color: "#ef4444",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "8 Live streams cataloged and processed with second-level timestamps.",
     description: "Monitors and captures active or completed YouTube Live streams. Handles live streaming states (active live, was_live, scheduled upcoming) and buffers audio chunks.",
     inputs: "Live broadcast URL, stream status indicator",
     outputs: "Recorded VOD audio stream or incremental segment buffer",
@@ -178,6 +194,8 @@ const STAGE_SPECS = {
     category: "Transcription",
     type: "SPEECH",
     color: "#10b981",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoCaption: "Faster-Whisper CUDA speech transcription outputs exact Hindi & English word timestamps.",
     description: "GPU-accelerated transcription using faster-whisper with float16 compute on NVIDIA RTX GPU. Employs Silero VAD to eliminate non-speech audio and outputs word-level timestamps in Hindi, English, and Hinglish.",
     inputs: "data/raw/{item_id}/audio_16k.wav",
     outputs: "Timestamped transcript segments with verbatim spoken words",
@@ -203,6 +221,8 @@ const STAGE_SPECS = {
     category: "AI Analysis",
     type: "ALL FLOWS",
     color: "#f59e0b",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoCaption: "Dual-engine LLM analysis extracts factual points with politician and policy tagging.",
     description: "Extracts structured political intelligence using local Ollama models. Employs Gemma 3 12B as primary model and Qwen3 8B as fast fallback, with native Ollama JSON Schema grammar enforcement.",
     inputs: "Clean transcript segments / post text, versioned prompt template (config/prompts/)",
     outputs: "Pydantic-validated JSON containing claims, topics, entities, announcements, and executive summary",
@@ -223,6 +243,8 @@ const STAGE_SPECS = {
     category: "Verification",
     type: "ALL FLOWS",
     color: "#10b981",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoCaption: "Every factual bullet is proven against verbatim speech using fuzzy Levenshtein ratio >= 0.75.",
     description: "Every claim and summary point extracted by the LLM is mathematically verified against verbatim transcript passages using Levenshtein fuzzy ratio matching (threshold >= 0.75). Hallucinations are rejected.",
     inputs: "data/analysis/{item_id}.json, data/transcripts/{item_id}.json",
     outputs: "Verified claims with exact character and timestamp anchor matches",
@@ -246,6 +268,8 @@ const STAGE_SPECS = {
     category: "Verification",
     type: "ALL FLOWS",
     color: "#06b6d4",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoCaption: "Interactive citation badges [1], [2], [3] link directly to exact video seconds (?t=XXs).",
     description: "Generates interactive citation badges ([1], [2]) linking directly to exact video seconds (?t=XXs) or post permalinks, ensuring full auditability for every claim.",
     inputs: "Verified claims with timestamp offsets",
     outputs: "Grounded text with inline citation anchors and clickable URL references",
@@ -266,6 +290,8 @@ const STAGE_SPECS = {
     category: "Synthesis",
     type: "ALL FLOWS",
     color: "#3b82f6",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoCaption: "Executive Summary synthesized where every sentence is tied to a verifiable evidence anchor.",
     description: "Synthesizes multi-paragraph executive summaries and key bullet points where every factual sentence is backed by grounded citation indices.",
     inputs: "Verified claims and citation dictionary",
     outputs: "Grounded executive summary and key points with interactive markdown badges",
@@ -284,6 +310,8 @@ const STAGE_SPECS = {
     category: "Reporting",
     type: "ALL FLOWS",
     color: "#8b5cf6",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Daily and item-level reports compiled into standalone HTML and JSON files.",
     description: "Generates comprehensive item-level and daily rollup reports in HTML, JSON, and Markdown formats. Designed for zero-database, file-first permanence.",
     inputs: "Item intelligence, daily aggregated metrics",
     outputs: "Standalone interactive HTML reports, machine-readable JSONs, and executive Markdown files",
@@ -304,6 +332,8 @@ const STAGE_SPECS = {
     category: "Telemetry",
     type: "ALL FLOWS",
     color: "#f59e0b",
+    demoImage: "assets/01_analytics_dashboard.png",
+    demoCaption: "Processing time telemetry (3h 26m total, avg 5m 02s per activity) displayed in dashboard.",
     description: "Profiles wall-clock execution time for every individual stage (download, extraction, transcription, LLM, verification) with microsecond precision using time.perf_counter().",
     inputs: "Stage entry/exit timestamps across pipeline execution",
     outputs: "ActivityTiming records tracking cumulative latency and bottleneck telemetry",
@@ -329,6 +359,8 @@ const STAGE_SPECS = {
     category: "Analytics",
     type: "GLOBAL",
     color: "#06b6d4",
+    demoImage: "assets/01_analytics_dashboard.png",
+    demoCaption: "Interactive metrics aggregating 41 activities, trend splines, and content distribution donuts.",
     description: "Aggregates intelligence, channel distributions, topic frequencies, and latency statistics across configurable time windows (Today, 7D, 30D, Custom).",
     inputs: "data/activities/, data/analysis/, data/analytics/timing/",
     outputs: "Aggregated dashboard metrics and chart payloads for React frontend",
@@ -352,6 +384,8 @@ const STAGE_SPECS = {
     category: "UI Streaming",
     type: "GLOBAL",
     color: "#10b981",
+    demoImage: "assets/04_live_processing.png",
+    demoCaption: "Real-time Server-Sent Events (SSE) progress bar (DISCOVERED -> COMPLETED) and console log.",
     description: "Broadcasts live stage transitions, item progress, log messages, and error alerts to connected web UI clients over persistent HTTP SSE connection.",
     inputs: "ProgressEvent bus from MonitoringPipeline",
     outputs: "Real-time SSE event stream at /api/monitor/events",
@@ -372,6 +406,8 @@ const STAGE_SPECS = {
     category: "Governance",
     type: "DATA LIFECYCLE",
     color: "#ef4444",
+    demoImage: "assets/05_data_management.png",
+    demoCaption: "Safe Deletion Hub showing 2-step preview, confirmation token entry, and audit log entries.",
     description: "Provides controlled, reversible data management. Generates 2-step impact previews and requires cryptographic confirmation token 'CONFIRM_DELETE' before purging.",
     inputs: "Target scope (Channel, Date Range, Single Date), confirmation token",
     outputs: "Preview report of exact files to be deleted, deletion execution summary",
@@ -412,6 +448,88 @@ const PIPELINE_SEQUENCE = [
   "safe_deletion"
 ];
 
+// Live Demonstration Showcase Items
+const SHOWCASE_ITEMS = [
+  {
+    title: "1. Analytics Dashboard & Intelligence Profiler",
+    stage: "ANALYTICS & TELEMETRY",
+    color: "#06b6d4",
+    image: "assets/01_analytics_dashboard.png",
+    description: "Real-time political intelligence breakdown across 4 activity flows over configurable date windows (Today, Yesterday, Last 7 Days, Last 30 Days, Custom Range). Displays activity trends over time, donut distribution charts, active channel counts, and cumulative hardware processing telemetry (3h 26m).",
+    features: [
+      "Dynamic Date-Range Intelligence (7D / 30D / Custom)",
+      "Activity Over Time Spline Graph & Type Distribution",
+      "Per-Stage Microsecond Profiling & Cumulative Duration",
+      "0-Failure Guarantee across multi-channel ingestion runs"
+    ]
+  },
+  {
+    title: "2. Strict Evidence Grounding & Second-Level Citations",
+    stage: "EVIDENCE GROUNDING & VERIFICATION",
+    color: "#10b981",
+    image: "assets/03_grounded_intelligence_detail.png",
+    description: "The core verification engine: every extracted claim and executive summary point is mathematically proven against verbatim spoken passages using fuzzy Levenshtein distance (ratio >= 0.75). Provides interactive [1], [2] citation badges linking to second-level timestamps (?t=XXs).",
+    features: [
+      "Verbatim speech passage matching with Levenshtein ratio >= 0.75",
+      "Clickable inline citation anchors ([1], [2]) linking to video timestamps",
+      "Politician and speaker attribution with constituency context",
+      "Automatic elimination of ungrounded LLM hallucinations"
+    ]
+  },
+  {
+    title: "3. Daily Intelligence Archive & Multi-Channel Catalog",
+    stage: "DISCOVERY & REPORTING",
+    color: "#8b5cf6",
+    image: "assets/02_daily_archive.png",
+    description: "Browse cataloged political activities for any date (shown: 2026-09-12 with 28 items, 365 grounded claims). Displays channel cards with thumbnails, activity badges (VIDEO, SHORT, LIVE, POST), publication metadata, and instant filtering across content types.",
+    features: [
+      "28 cataloged items across Sansad TV and @NarendraModi",
+      "Instant multi-flow filtering (Videos, Shorts, Posts, Live Streams)",
+      "One-click export to standalone HTML report and CSV dataset",
+      "Inspect Intelligence drawer trigger for deep analysis"
+    ]
+  },
+  {
+    title: "4. Live Processing Console & Real-Time SSE Tracker",
+    stage: "STREAMING & TELEMETRY",
+    color: "#3b82f6",
+    image: "assets/04_live_processing.png",
+    description: "Live Server-Sent Events (SSE) monitor visualizing pipeline stage progression in real time: DISCOVERED -> METADATA_COLLECTED -> AUDIO_EXTRACTED -> TRANSCRIBED -> ANALYZED -> EVIDENCE_VALIDATED -> REPORT_GENERATED -> COMPLETED.",
+    features: [
+      "8-stage visual pipeline progression indicator",
+      "Live Server-Sent Events (SSE) streaming at /api/monitor/events",
+      "Integrated live terminal stream with real-time log dispatch",
+      "Zero polling overhead with asynchronous thread-safe queues"
+    ]
+  },
+  {
+    title: "5. Selective Data Management & Controlled Purge Hub",
+    stage: "GOVERNANCE & LIFECYCLE",
+    color: "#ef4444",
+    image: "assets/05_data_management.png",
+    description: "Enterprise-grade data lifecycle management. Allows targeting specific channels, date ranges, or single dates with a mandatory 2-step impact preview before purging. Requires explicit cryptographic confirmation token 'CONFIRM_DELETE' and writes to an append-only audit log.",
+    features: [
+      "Scope-targeted deletion (By Channel, Date Range, or Single Date)",
+      "2-step impact preview calculating exact items, files, and bytes",
+      "Mandatory confirmation token 'CONFIRM_DELETE' to execute",
+      "Tamper-evident audit trail saved to logs/data_management/audit.jsonl"
+    ]
+  },
+  {
+    title: "6. Interactive Pipeline Architecture & Swimlanes",
+    stage: "PIPELINE SPECIFICATION & WORKFLOW",
+    color: "#6366f1",
+    image: "assets/06_pipeline_flow.png",
+    description: "Interactive visual blueprint mapping all 4 YouTube activity flows, Faster-Whisper transcription, dual-engine Ollama LLM extraction, mathematical evidence grounding, microsecond timing profiler, and file-first NVMe data layout.",
+    features: [
+      "End-to-end swimlane mapping for Video, Shorts, Post, and Live streams",
+      "Interactive SVG canvas with pan, zoom, and stage inspection drawers",
+      "Exact NVMe file layout paths and JSON schema specifications",
+      "Mobile-responsive timeline cards and touch-optimized view"
+    ]
+  }
+];
+
 // State Management
 let currentTab = "full";
 let currentViewMode = "diagram"; // 'diagram' | 'timeline'
@@ -431,6 +549,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initViewModeToggle();
   initSearch();
   initDrawer();
+  initLightbox();
   initTouchGestures();
 
   // Smart responsive view mode: Step-by-Step Cards for phones, Interactive Diagram for desktop
@@ -449,6 +568,11 @@ function initViewModeToggle() {
   if (!btn) return;
 
   btn.addEventListener("click", () => {
+    if (currentTab === "screenshots") {
+      // Switch back to full diagram
+      document.querySelector(".tab-btn[data-tab='full']")?.click();
+      return;
+    }
     if (currentViewMode === "diagram") {
       setViewMode("timeline");
     } else {
@@ -461,9 +585,12 @@ function setViewMode(mode) {
   currentViewMode = mode;
   const canvas = document.getElementById("diagram-canvas");
   const timeline = document.getElementById("timeline-container");
+  const showcase = document.getElementById("showcase-container");
   const btn = document.getElementById("btn-view-mode");
   const controls = document.getElementById("controls-overlay");
   const legend = document.getElementById("legend-overlay");
+
+  if (showcase) showcase.style.display = "none";
 
   if (mode === "timeline") {
     canvas.style.display = "none";
@@ -502,11 +629,121 @@ function initTabs() {
 }
 
 function renderCurrentView() {
+  const canvas = document.getElementById("diagram-canvas");
+  const timeline = document.getElementById("timeline-container");
+  const showcase = document.getElementById("showcase-container");
+  const controls = document.getElementById("controls-overlay");
+  const legend = document.getElementById("legend-overlay");
+  const viewToggle = document.getElementById("btn-view-mode");
+
+  if (currentTab === "screenshots") {
+    canvas.style.display = "none";
+    timeline.style.display = "none";
+    showcase.style.display = "block";
+    controls.style.display = "none";
+    if (legend) legend.style.display = "none";
+    if (viewToggle) viewToggle.style.display = "none";
+    renderShowcaseView();
+    return;
+  }
+
+  if (viewToggle) viewToggle.style.display = "inline-flex";
+  if (showcase) showcase.style.display = "none";
+
   if (currentViewMode === "timeline") {
+    canvas.style.display = "none";
+    timeline.style.display = "block";
+    controls.style.display = "none";
+    if (legend) legend.style.display = "none";
     renderTimelineView();
   } else {
+    canvas.style.display = "flex";
+    timeline.style.display = "none";
+    controls.style.display = "flex";
+    if (legend && window.innerWidth > 992) legend.style.display = "block";
     renderDiagramView();
   }
+}
+
+// =============================================================================
+// Live Demonstration Showcase Gallery View
+// =============================================================================
+function renderShowcaseView() {
+  const container = document.getElementById("showcase-container");
+  if (!container) return;
+
+  let html = `
+    <div class="showcase-header">
+      <h2>📸 Live Application Demonstration Showcase</h2>
+      <p>Real-world demonstration captures of the Political YouTube Channel Activity Monitor in active operation. Tap or click any image to view full resolution with inspection details.</p>
+    </div>
+    <div class="showcase-grid">
+  `;
+
+  SHOWCASE_ITEMS.forEach(item => {
+    html += `
+      <div class="showcase-card">
+        <div class="showcase-img-box" onclick="openLightbox('${item.image}', '${item.title.replace(/'/g, "\\'")}', '${item.description.replace(/'/g, "\\'")}')">
+          <img src="${item.image}" alt="${item.title}" loading="lazy" />
+          <div class="showcase-zoom-badge">🔍 Zoom Fullscreen</div>
+        </div>
+        <div class="showcase-card-body">
+          <div class="showcase-card-title-group">
+            <div class="showcase-card-title">${item.title}</div>
+            <span class="showcase-stage-tag" style="background: ${item.color}25; color: ${item.color}; border: 1px solid ${item.color}60;">
+              ${item.stage}
+            </span>
+          </div>
+          <div class="showcase-card-desc">${item.description}</div>
+          <ul class="showcase-features-list">
+            ${item.features.map(f => `<li>${f}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// =============================================================================
+// Fullscreen Image Lightbox Modal
+// =============================================================================
+function initLightbox() {
+  const modal = document.getElementById("lightbox-modal");
+  const closeBtn = document.getElementById("lightbox-close");
+
+  if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
+  if (modal) {
+    modal.addEventListener("click", e => {
+      if (e.target === modal) closeLightbox();
+    });
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeLightbox();
+  });
+}
+
+function openLightbox(imgSrc, title, caption) {
+  const modal = document.getElementById("lightbox-modal");
+  const img = document.getElementById("lightbox-img");
+  const titleEl = document.getElementById("lightbox-title");
+  const captionEl = document.getElementById("lightbox-caption");
+
+  if (!modal || !img) return;
+
+  img.src = imgSrc;
+  if (titleEl) titleEl.textContent = title;
+  if (captionEl) captionEl.textContent = caption;
+
+  modal.classList.add("open");
+}
+
+function closeLightbox() {
+  const modal = document.getElementById("lightbox-modal");
+  if (modal) modal.classList.remove("open");
 }
 
 // =============================================================================
@@ -519,7 +756,7 @@ function renderTimelineView() {
   let html = `
     <div style="margin-bottom: 20px;">
       <h2 style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px;">Detailed Pipeline Architecture & Sequence</h2>
-      <p style="font-size: 13px; color: var(--text-secondary);">End-to-end data lifecycle stages from discovery to LLM verification and safe storage. Tap any stage to inspect complete technical specifications.</p>
+      <p style="font-size: 13px; color: var(--text-secondary);">End-to-end data lifecycle stages from discovery to LLM verification and safe storage. Tap any stage to inspect complete technical specifications & live demonstration screenshots.</p>
     </div>
     <div class="timeline-flow">
   `;
@@ -559,7 +796,7 @@ function renderTimelineView() {
         </div>
 
         <div class="timeline-inspect-hint">
-          <span>Tap to view JSON payload & failure recovery &rarr;</span>
+          <span>Tap to view live demonstration screenshot & failure recovery &rarr;</span>
         </div>
       </div>
     `;
@@ -978,6 +1215,20 @@ function openDrawer(stageKey) {
   document.getElementById("drawer-input").textContent = spec.inputs;
   document.getElementById("drawer-output").textContent = spec.outputs;
 
+  // Live Demonstration Image in Drawer
+  const demoSection = document.getElementById("drawer-demo-section");
+  const demoCard = document.getElementById("drawer-demo-card");
+  if (spec.demoImage && demoSection && demoCard) {
+    demoSection.style.display = "flex";
+    demoCard.innerHTML = `
+      <img src="${spec.demoImage}" alt="${spec.name} Live Demonstration" />
+      <div class="drawer-demo-badge">🔍 Zoom Fullscreen</div>
+    `;
+    demoCard.onclick = () => openLightbox(spec.demoImage, spec.name + " Demonstration", spec.demoCaption || "");
+  } else if (demoSection) {
+    demoSection.style.display = "none";
+  }
+
   // Files List
   const filesList = document.getElementById("drawer-files-list");
   filesList.innerHTML = "";
@@ -1037,7 +1288,7 @@ function initControls() {
   const viewport = document.getElementById("viewport-container");
   if (viewport) {
     viewport.addEventListener("wheel", e => {
-      if (currentViewMode === "timeline") return;
+      if (currentViewMode === "timeline" || currentTab === "screenshots") return;
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
       zoom(delta);
@@ -1045,7 +1296,7 @@ function initControls() {
 
     // Mouse drag pan
     viewport.addEventListener("mousedown", e => {
-      if (currentViewMode === "timeline") return;
+      if (currentViewMode === "timeline" || currentTab === "screenshots") return;
       if (e.target.closest(".controls-overlay") || e.target.closest(".detail-drawer") || e.target.closest(".node-group")) return;
       isDragging = true;
       startX = e.clientX - panX;
@@ -1070,7 +1321,7 @@ function initTouchGestures() {
   if (!viewport) return;
 
   viewport.addEventListener("touchstart", e => {
-    if (currentViewMode === "timeline") return;
+    if (currentViewMode === "timeline" || currentTab === "screenshots") return;
     if (e.touches.length === 1) {
       isDragging = true;
       startX = e.touches[0].clientX - panX;
@@ -1085,7 +1336,7 @@ function initTouchGestures() {
   }, { passive: true });
 
   viewport.addEventListener("touchmove", e => {
-    if (currentViewMode === "timeline") return;
+    if (currentViewMode === "timeline" || currentTab === "screenshots") return;
     if (e.touches.length === 1 && isDragging) {
       panX = e.touches[0].clientX - startX;
       panY = e.touches[0].clientY - startY;
@@ -1153,7 +1404,7 @@ function applyTransform() {
 }
 
 // =============================================================================
-// Search Functionality (Filters both SVG Nodes and Timeline Cards)
+// Search Functionality (Filters SVG Nodes, Timeline Cards, and Showcase Cards)
 // =============================================================================
 function initSearch() {
   const input = document.getElementById("search-input");
@@ -1207,6 +1458,16 @@ function initSearch() {
         spec.filesProduced.toLowerCase().includes(term)
       )) {
         card.style.display = "block";
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    // 3. Filter in Showcase Gallery Mode
+    document.querySelectorAll(".showcase-card").forEach(card => {
+      const text = card.textContent.toLowerCase();
+      if (!term || text.includes(term)) {
+        card.style.display = "flex";
       } else {
         card.style.display = "none";
       }

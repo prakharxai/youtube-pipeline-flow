@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>Political YouTube Monitoring — Interactive Pipeline Architecture & Flows</title>
-  <meta name="description" content="End-to-End Multilingual Pipeline Architecture, Grounded Evidence Verification, Hardware Telemetry, and Data Lifecycle for Political YouTube Channel Activity Monitor.">
+  <meta name="description" content="End-to-End Multilingual Pipeline Architecture, Grounded Evidence Verification, Hardware Telemetry, and Live Application Demonstration for Political YouTube Channel Activity Monitor.">
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,12 +72,17 @@
         <span class="tab-label">Safe Deletion & Audit</span>
         <span class="badge">2-Step</span>
       </button>
+      <button class="tab-btn highlight-tab" data-tab="screenshots">
+        <span class="tab-icon">📸</span>
+        <span class="tab-label">Live App Showcase</span>
+        <span class="badge highlight-badge">Screenshots</span>
+      </button>
     </div>
   </nav>
 
   <!-- Mobile Quick Action Banner -->
   <div class="mobile-hint-bar" id="mobile-hint-bar">
-    <span>💡 Pinch to zoom, drag to pan canvas &bull; Tap any stage to inspect technical specs</span>
+    <span>💡 Tap any stage to inspect technical specs & demonstration screenshots</span>
   </div>
 
   <!-- Main Viewport Area -->
@@ -89,6 +94,9 @@
 
       <!-- Step-by-Step Detailed Card / Timeline View (Mobile & Desktop) -->
       <div class="timeline-container" id="timeline-container" style="display: none;"></div>
+
+      <!-- Live Demonstration Showcase Gallery -->
+      <div class="showcase-container" id="showcase-container" style="display: none;"></div>
 
       <!-- Floating Canvas Controls -->
       <div class="controls-overlay" id="controls-overlay">
@@ -129,6 +137,12 @@
       </div>
 
       <div class="drawer-body">
+        <!-- Live Demonstration Image in Drawer -->
+        <div class="info-section" id="drawer-demo-section" style="display: none;">
+          <span class="section-label">📸 Live Application Demonstration</span>
+          <div class="drawer-demo-card" id="drawer-demo-card"></div>
+        </div>
+
         <div class="info-section">
           <span class="section-label">Detailed Stage Architecture</span>
           <p class="section-value" id="drawer-desc"></p>
@@ -180,6 +194,20 @@
       </div>
     </aside>
   </main>
+
+  <!-- Fullscreen Image Lightbox Modal -->
+  <div class="lightbox-modal" id="lightbox-modal">
+    <div class="lightbox-content">
+      <div class="lightbox-header">
+        <span class="lightbox-title" id="lightbox-title">Demonstration Preview</span>
+        <button class="lightbox-close" id="lightbox-close" title="Close Preview">✕</button>
+      </div>
+      <div class="lightbox-img-wrapper">
+        <img src="" alt="Demonstration Preview" id="lightbox-img">
+      </div>
+      <p class="lightbox-caption" id="lightbox-caption"></p>
+    </div>
+  </div>
 
   <script src="pipeline.js"></script>
 </body>
