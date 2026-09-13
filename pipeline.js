@@ -632,14 +632,28 @@ function renderCurrentView() {
   const canvas = document.getElementById("diagram-canvas");
   const timeline = document.getElementById("timeline-container");
   const showcase = document.getElementById("showcase-container");
+  const limitations = document.getElementById("limitations-container");
   const controls = document.getElementById("controls-overlay");
   const legend = document.getElementById("legend-overlay");
   const viewToggle = document.getElementById("btn-view-mode");
 
+  if (currentTab === "limitations") {
+    canvas.style.display = "none";
+    timeline.style.display = "none";
+    if (showcase) showcase.style.display = "none";
+    if (limitations) limitations.style.display = "block";
+    controls.style.display = "none";
+    if (legend) legend.style.display = "none";
+    if (viewToggle) viewToggle.style.display = "none";
+    renderLimitationsView();
+    return;
+  }
+
   if (currentTab === "screenshots") {
     canvas.style.display = "none";
     timeline.style.display = "none";
-    showcase.style.display = "block";
+    if (limitations) limitations.style.display = "none";
+    if (showcase) showcase.style.display = "block";
     controls.style.display = "none";
     if (legend) legend.style.display = "none";
     if (viewToggle) viewToggle.style.display = "none";
@@ -649,6 +663,7 @@ function renderCurrentView() {
 
   if (viewToggle) viewToggle.style.display = "inline-flex";
   if (showcase) showcase.style.display = "none";
+  if (limitations) limitations.style.display = "none";
 
   if (currentViewMode === "timeline") {
     canvas.style.display = "none";
@@ -663,6 +678,265 @@ function renderCurrentView() {
     if (legend && window.innerWidth > 992) legend.style.display = "block";
     renderDiagramView();
   }
+}
+
+// =============================================================================
+// Limitations, Technical Challenges & Roadmap View
+// =============================================================================
+function renderLimitationsView() {
+  const container = document.getElementById("limitations-container");
+  if (!container) return;
+
+  const html = `
+    <div class="limitations-hero">
+      <div class="limitations-hero-badge">⚠️ SYSTEM MATURITY ASSESSMENT (v1.0.0)</div>
+      <h2>System Limitations, Operational Challenges & Engineering Roadmap</h2>
+      <p>A transparent architectural assessment of current system boundaries across YouTube scraping dependencies, multilingual acoustic noise in parliamentary speeches, strict Levenshtein evidence grounding trade-offs, single-GPU VRAM contention, and file-first filesystem scaling. Built for engineering evaluation and production planning.</p>
+    </div>
+
+    <div class="limitations-grid">
+      <!-- 1. Scraping & Ingestion -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">🌐 1. Upstream Scraping vs Data API v3</div>
+          <span class="limitation-status-badge status-warning">UPSTREAM RISK</span>
+        </div>
+        <div class="limitation-card-desc">
+          Channel discovery, post scraping, and live detection utilize yt-dlp and direct DOM extraction rather than official Google Cloud YouTube Data API v3.
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>IP Throttling:</strong> Aggressive multi-channel scraping risks HTTP 429 and anti-bot verification challenges.</li>
+          <li><strong>Community DOM Volatility:</strong> YouTube Community posts lack an official public API; structural UI redesigns can break scrapers.</li>
+          <li><strong>Live VOD vs RTMP:</strong> Currently ingests completed broadcasts (VOD); does not chunk live rolling RTMP streams in real-time.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">Exponential backoff, user-agent rotation, and jittered pacing. Phase 2 introduces optional YouTube Data API v3 integration with automated fallback.</div>
+        </div>
+      </div>
+
+      <!-- 2. Audio & Speech-to-Text -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">🎙️ 2. Acoustic Realities & Dialects</div>
+          <span class="limitation-status-badge status-danger">ACOUSTIC NOISE</span>
+        </div>
+        <div class="limitation-card-desc">
+          Faster-Whisper CUDA float16 provides high-speed Hindi/English transcription, but political audio exhibits extreme acoustic challenges.
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>Parliamentary Shouting & Crosstalk:</strong> Concurrent MP speakers in debates cause overlapping speech and word error rate spikes.</li>
+          <li><strong>Rally Reverberation:</strong> Open-air election rallies suffer from loudspeaker echo, wind distortion, and crowd slogans.</li>
+          <li><strong>Regional Idioms:</strong> Non-standard dialects (Garhwali / Kumaoni / Pahari colloquialisms) can be mistranslated by standard models.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">Silero VAD speech filtering and hallucination temperature fallback. Phase 2 adds PyAnnote Speaker Diarization to isolate overlapping voices.</div>
+        </div>
+      </div>
+
+      <!-- 3. Evidence Grounding -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">🎯 3. Strict Fuzzy Grounding Trade-off</div>
+          <span class="limitation-status-badge status-info">DESIGN TRADE-OFF</span>
+        </div>
+        <div class="limitation-card-desc">
+          Mathematical string verification uses Levenshtein ratio ≥ 0.75 between LLM claims and verbatim spoken Whisper segments.
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>High Precision vs Low Semantic Recall:</strong> Guarantees 0 hallucination, but rejects abstract conceptual takeaways that rephrase speech.</li>
+          <li><strong>No Dense Embedding Layer:</strong> Semantic abstractions that accurately capture speech without verbatim vocabulary fail verification.</li>
+          <li><strong>Transcript Chunking:</strong> 4+ hour debates chunked with 15% overlap can occasionally lose cross-segment conversational arcs.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">Deliberate choice: Truthfulness over completeness. Phase 2 introduces Tier-2 Hybrid Grounding using BGE-m3 multilingual dense embeddings.</div>
+        </div>
+      </div>
+
+      <!-- 4. Compute & GPU VRAM -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">⚡ 4. Single-GPU VRAM Contention</div>
+          <span class="limitation-status-badge status-warning">HARDWARE LIMIT</span>
+        </div>
+        <div class="limitation-card-desc">
+          Whisper CUDA (~3-4GB VRAM) and Ollama Gemma 3 12B (~8.1GB VRAM) compete for GPU memory on consumer workstations (12-16GB).
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>CUDA OOM Risk:</strong> Concurrent transcription and 12B LLM inference on a single 12GB GPU can exhaust memory.</li>
+          <li><strong>Sequential Processing Backlog:</strong> A 1-hour video requires ~4.5 minutes wall-clock time; 20+ hours of video create sequential compute queues.</li>
+          <li><strong>Thermal & Workstation Uptime:</strong> Bulk retroactive backfills place sustained 100% load on workstation GPU/CPU.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">Strictly serialized stage execution with CUDA cache flushes, plus automatic fallback to Qwen3 8B (5.2GB). Phase 3 adds multi-GPU Celery queues.</div>
+        </div>
+      </div>
+
+      <!-- 5. Storage & Query Scaling -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">📁 5. File-First Storage Scaling</div>
+          <span class="limitation-status-badge status-warning">I/O LATENCY</span>
+        </div>
+        <div class="limitation-card-desc">
+          Individual JSON files per activity provide clean auditability and zero SQL lock-in, but scale challenges emerge at 50,000+ files.
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>Directory Listing Latency:</strong> Scanning flat directories with tens of thousands of JSON files increases os.listdir latency (>200ms).</li>
+          <li><strong>Analytical Aggregation Spikes:</strong> Multi-month date range analytics deserialize raw JSON files from disk on-the-fly.</li>
+          <li><strong>No Multi-File ACID:</strong> Atomic tempfile rename guarantees per-file integrity, but cross-directory writes lack distributed transactions.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">In-memory caching and clean directory partitioning. Phase 2 introduces an embedded SQLite/DuckDB read-model indexer for sub-5ms queries.</div>
+        </div>
+      </div>
+
+      <!-- 6. Architecture & Security -->
+      <div class="limitation-card">
+        <div class="limitation-card-header">
+          <div class="limitation-card-title">🛡️ 6. Single-Node Architecture & Auth</div>
+          <span class="limitation-status-badge status-info">INTRANET SCOPE</span>
+        </div>
+        <div class="limitation-card-desc">
+          Unified FastAPI async application with Server-Sent Events (SSE) telemetry, designed for trusted research workstations.
+        </div>
+        <div class="limitation-list-title">Core Challenges</div>
+        <ul class="limitation-points-list">
+          <li><strong>Zero RBAC:</strong> REST APIs do not require JWT/OAuth authentication; relies on localhost or protected intranet LAN bindings.</li>
+          <li><strong>Task Recovery:</strong> Unexpected host reboots during a long video restart that video from the beginning upon relaunch.</li>
+          <li><strong>In-Memory SSE Queues:</strong> Live logs stream via in-memory thread queues; connecting clients only see logs emitted while connected.</li>
+        </ul>
+        <div class="limitation-mitigation-box">
+          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
+          <div class="limitation-mitigation-desc">Cryptographic token (CONFIRM_DELETE) protects destructive operations. Phase 3 introduces JWT auth, reverse proxy bundling, and persistent Celery tasks.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparative Technical Matrix -->
+    <div class="limitations-table-section">
+      <h3>📊 Comparative Technical Architecture Matrix</h3>
+      <p>Comparing current v1.0.0 implementation decisions against enterprise theoretical targets and engineering justifications.</p>
+      
+      <div class="matrix-table-wrapper">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Architecture Subsystem</th>
+              <th>Current Implementation (v1.0.0)</th>
+              <th>Enterprise Theoretical Target</th>
+              <th>Engineering Trade-Off Justification</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Ingestion Engine</strong></td>
+              <td>yt-dlp + direct DOM scraping</td>
+              <td>YouTube Data API v3 + Webhooks</td>
+              <td>Eliminates cloud API quotas; enables community posts & live status without billing.</td>
+            </tr>
+            <tr>
+              <td><strong>Speech-to-Text</strong></td>
+              <td>Faster-Whisper CUDA float16 + Silero VAD</td>
+              <td>Whisper Large-v3 + PyAnnote Diarization</td>
+              <td>Runs comfortably under 4GB VRAM alongside local LLMs on a single GPU workstation.</td>
+            </tr>
+            <tr>
+              <td><strong>LLM Inference</strong></td>
+              <td>Local Gemma 3 12B / Qwen3 8B via Ollama</td>
+              <td>Distributed 70B+ cluster or Frontier Cloud API</td>
+              <td>100% data sovereignty, zero ongoing API fees, complete privacy for sensitive analysis.</td>
+            </tr>
+            <tr>
+              <td><strong>Evidence Grounding</strong></td>
+              <td>Levenshtein String Verification (≥ 0.75)</td>
+              <td>Hybrid: Levenshtein + BGE-m3 Vector Embeddings</td>
+              <td>Absolute mathematical guarantee against hallucination; strict adherence to spoken facts.</td>
+            </tr>
+            <tr>
+              <td><strong>Storage Architecture</strong></td>
+              <td>File-first hierarchical JSON/HTML under data/</td>
+              <td>Hybrid: Raw JSON Data Lake + Embedded DuckDB</td>
+              <td>Human-readable, git-inspectable, zero database setup or migration schema fragility.</td>
+            </tr>
+            <tr>
+              <td><strong>Task Orchestration</strong></td>
+              <td>Asyncio ThreadPoolExecutor + SSE telemetry</td>
+              <td>Distributed Celery + Redis Task Cluster</td>
+              <td>Zero-dependency lightweight deployment; single-command startup via ./start.sh.</td>
+            </tr>
+            <tr>
+              <td><strong>Access & Security</strong></td>
+              <td>Localhost / Protected Intranet binding</td>
+              <td>Multi-Tenant RBAC + JWT Auth + HTTPS Proxy</td>
+              <td>Tailored for dedicated internal intelligence workstations and research teams.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Strategic Roadmap -->
+    <div class="limitations-table-section">
+      <h3>🚀 Strategic Engineering Roadmap</h3>
+      <p>Milestones and phased evolutionary targets for scaling the political intelligence monitoring platform.</p>
+
+      <div class="roadmap-grid">
+        <div class="roadmap-card active-phase">
+          <span class="roadmap-badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4);">Phase 1 (Completed)</span>
+          <div class="roadmap-title">Alpha to Beta Production Prototype</div>
+          <span class="roadmap-status-pill" style="color: #34d399;">● Current Working Baseline</span>
+          <ul class="roadmap-items">
+            <li>4 Ingestion flows (Videos, Shorts, Posts, Live)</li>
+            <li>CUDA Faster-Whisper Hindi/English transcription</li>
+            <li>Dual-engine Gemma 3 12B / Qwen3 8B with JSON Schema</li>
+            <li>Strict Levenshtein timestamped evidence grounding</li>
+            <li>Microsecond stage profiler & telemetry dashboard</li>
+            <li>Selective Data Management with 2-step audit trail</li>
+          </ul>
+        </div>
+
+        <div class="roadmap-card upcoming-phase">
+          <span class="roadmap-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Phase 2 (Planned)</span>
+          <div class="roadmap-title">Architectural Enhancements</div>
+          <span class="roadmap-status-pill" style="color: #fbbf24;">● Next Development Sprint</span>
+          <ul class="roadmap-items">
+            <li>Embedded SQLite/DuckDB read-model indexer (&lt;5ms queries)</li>
+            <li>Tier-2 Hybrid Semantic Grounding via BGE-m3 embeddings</li>
+            <li>PyAnnote automated speaker diarization for debates</li>
+            <li>YouTube Data API v3 integration with automated fallback</li>
+            <li>Multi-channel automated cron scheduler</li>
+            <li>Automated CSV/Excel batch intelligence exporters</li>
+          </ul>
+        </div>
+
+        <div class="roadmap-card future-phase">
+          <span class="roadmap-badge" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.4);">Phase 3 (Long-Term)</span>
+          <div class="roadmap-title">Distributed Enterprise Scale</div>
+          <span class="roadmap-status-pill" style="color: #c4b5fd;">● Enterprise Target</span>
+          <ul class="roadmap-items">
+            <li>Distributed Celery/Redis multi-GPU worker clusters</li>
+            <li>Rolling 60-second real-time live RTMP/HLS audio ingestion</li>
+            <li>Multi-user RBAC with JWT authentication & audit trails</li>
+            <li>Containerized Docker-Compose & Helm chart deployment</li>
+            <li>Vector database integration (Qdrant/Milvus) for cross-year RAG</li>
+            <li>Automated alerts via Telegram/Email on breaking claims</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
 }
 
 // =============================================================================
