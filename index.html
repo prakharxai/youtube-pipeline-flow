@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Political YouTube Monitoring — Interactive Pipeline Architecture & Flows</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo-badge">SYSTEM ARCHITECTURE</span>
+      <div>
+        <h1>Political YouTube Channel Activity Monitor</h1>
+        <div class="header-subtitle">End-to-End Multilingual Pipeline, Grounded Evidence, Profiling & Safe Deletion Lifecycle</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="search-box">
+        <span class="icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search stages, files, inputs..." autocomplete="off">
+      </div>
+    </div>
+  </header>
+
+  <!-- Interactive Diagram Tabs -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="full">
+      <span>🌐 Complete Pipeline Swimlanes</span>
+      <span class="badge">E2E</span>
+    </button>
+    <button class="tab-btn" data-tab="flows">
+      <span>🔀 4 Activity Flows</span>
+      <span class="badge">Video/Short/Post/Live</span>
+    </button>
+    <button class="tab-btn" data-tab="evidence">
+      <span>🎯 Grounded Citations Flow</span>
+      <span class="badge">Provenance</span>
+    </button>
+    <button class="tab-btn" data-tab="profiling">
+      <span>⏱️ Processing-Time Profiler</span>
+      <span class="badge">Microsecond</span>
+    </button>
+    <button class="tab-btn" data-tab="storage">
+      <span>📁 File-First Storage Tree</span>
+      <span class="badge">NVMe Data</span>
+    </button>
+    <button class="tab-btn" data-tab="deletion">
+      <span>🛡️ Safe Deletion & Audit</span>
+      <span class="badge">2-Step</span>
+    </button>
+  </nav>
+
+  <!-- Main Viewport Area -->
+  <main class="main-content">
+    <div class="viewport-container" id="viewport-container">
+      
+      <!-- Interactive SVG Canvas -->
+      <div class="diagram-canvas" id="diagram-canvas"></div>
+
+      <!-- Floating Canvas Controls -->
+      <div class="controls-overlay">
+        <button class="ctrl-btn" id="btn-zoom-in" title="Zoom In">+</button>
+        <button class="ctrl-btn" id="btn-zoom-out" title="Zoom Out">−</button>
+        <button class="ctrl-btn" id="btn-reset" title="Reset Viewport">⟲</button>
+      </div>
+
+      <!-- Quick Legend -->
+      <div class="legend-overlay">
+        <div class="legend-title">Pipeline Flows</div>
+        <div class="legend-items">
+          <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span> <span>Video Pipeline</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#ec4899"></span> <span>Shorts Pipeline</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> <span>Post (Audio-free)</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> <span>Live (Streaming)</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#10b981"></span> <span>Faster-Whisper CUDA</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> <span>Ollama LLM (gemma3)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide-over Stage Inspection Drawer -->
+    <aside class="detail-drawer" id="detail-drawer">
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <span class="drawer-badge" id="drawer-stage-badge">STAGE</span>
+          <h2 class="drawer-title" id="drawer-stage-title">Stage Details</h2>
+        </div>
+        <button class="drawer-close" id="drawer-close" title="Close Panel">✕</button>
+      </div>
+
+      <div class="drawer-body">
+        <div class="info-section">
+          <span class="section-label">Description</span>
+          <p class="section-value" id="drawer-desc"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Input / Upstream Source</span>
+          <p class="section-value" id="drawer-input"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Output & Deliverables</span>
+          <p class="section-value" id="drawer-output"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Files Produced (NVMe Storage)</span>
+          <div class="tag-list">
+            <span class="tag" id="drawer-files"></span>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Timing Profiler Metrics</span>
+          <p class="section-value" id="drawer-timing"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Failure Modes & Error Handling</span>
+          <p class="section-value" id="drawer-failure"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Retry Policy & Fallbacks</span>
+          <p class="section-value" id="drawer-retry"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Code Implementation Reference</span>
+          <p class="section-value" style="font-family:monospace; color:#38bdf8;" id="drawer-code"></p>
+        </div>
+
+        <div class="info-section">
+          <span class="section-label">Sample Data / JSON Payload</span>
+          <pre class="code-box" id="drawer-payload"></pre>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="pipeline.js"></script>
+</body>
+</html>
