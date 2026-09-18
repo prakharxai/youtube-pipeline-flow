@@ -304,8 +304,8 @@ const STAGE_SPECS = {
     category: "Verification Phase",
     type: "PARALLEL",
     color: "#0891b2",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Zero-hallucination guarantee: Verifies every AI claim against verbatim transcript text.",
+    demoImage: "assets/09_evidence_grounding.png",
+    demoCaption: "Zero-hallucination guarantee: Verifies every AI claim against verbatim transcript text with Levenshtein fuzzy matching.",
     description: "Cross-verifies AI extracted claims, announcements, and summaries against verbatim transcript text. Uses 3-tier matching: 1) Direct substring match 2) 5-word sub-phrase match 3) >60% significant word overlap. Generates clickable timestamp URLs (&t=XXs) and renders inline [#] markers.",
     inputs: "ItemAnalysis, TranscriptData (or post_text)",
     outputs: "Grounded ItemAnalysis with verified=true/false and inline citation markers",
@@ -348,7 +348,7 @@ const STAGE_SPECS = {
     category: "Output Phase",
     type: "PARALLEL / BATCH",
     color: "#4f46e5",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
+    demoImage: "assets/02_daily_archive.png",
     demoCaption: "Self-contained standalone HTML, JSON, and Markdown reports generated with zero external CSS/JS dependencies.",
     description: "Generates 3 tiers of reports: 1) Individual Item Reports (HTML + JSON) 2) Channel Daily Reports (HTML + JSON) 3) Overall Daily Executive Report (HTML + JSON + Markdown). HTML reports are 100% self-contained with embedded responsive CSS.",
     inputs: "ActivityItem, ItemAnalysis, TranscriptData, ChannelConfig, date_str",
@@ -370,8 +370,8 @@ const STAGE_SPECS = {
     category: "Persistence Phase",
     type: "GLOBAL",
     color: "#4f46e5",
-    demoImage: "assets/05_data_management.png",
-    demoCaption: "Predictable NVMe file hierarchy ensures complete auditability; MongoDB enables high-speed UI queries.",
+    demoImage: "assets/08_dual_tier_storage.png",
+    demoCaption: "Dual-tier persistence: NVMe file-first audit hierarchy synchronized with indexed MongoDB collections.",
     description: "Provides dual-tier persistence. Tier 1: NVMe disk file-first storage with atomic writes (.tmp + replace) for human-readable auditability. Tier 2: MongoDB document persistence for high-speed indexing, search, and dashboard aggregation.",
     inputs: "All system models and deliverables",
     outputs: "Synchronized disk files and MongoDB collections",
@@ -391,8 +391,8 @@ const STAGE_SPECS = {
     category: "API & Monitoring",
     type: "REAL-TIME",
     color: "#059669",
-    demoImage: "assets/01_analytics_dashboard.png",
-    demoCaption: "Live Server-Sent Events stream (/api/events) drives real-time progress cards in the UI dashboard.",
+    demoImage: "assets/04_live_processing.png",
+    demoCaption: "Live Server-Sent Events stream (/api/events) drives real-time progress cards and mission control console.",
     description: "Streams live ProgressEvents over Server-Sent Events (/api/events). Maintains active_items_tracker dictionary in FastAPI memory, updating stage, status, percentage, timings, and error payloads for every concurrent worker item.",
     inputs: "ProgressEvent emitted by pipeline",
     outputs: "Real-time SSE event stream (text/event-stream) consumed by React frontend",
@@ -414,7 +414,7 @@ const STAGE_SPECS = {
     category: "Governance & Cleanup",
     type: "GOVERNANCE",
     color: "#dc2626",
-    demoImage: "assets/05_data_management.png",
+    demoImage: "assets/10_safe_deletion_audit.png",
     demoCaption: "2-step cryptographic confirmation prevents accidental data loss; writes append-only audit trail.",
     description: "Provides controlled data purge capabilities. Step 1: Preview impact across scopes (CHANNEL, DATE, DATE_RANGE, WATCHLIST) counting affected activities, transcripts, and reports. Step 2: Requires explicit cryptographic token (CONFIRM_DELETE) to execute atomic purge and writes append-only audit records.",
     inputs: "DeletionScope, target identifier, confirmation_token",
@@ -1427,13 +1427,26 @@ function renderShowcaseView() {
         "Cryptographic confirmation token gate preventing accidental loss",
         "Append-only audit trail mirrored to NVMe JSON and MongoDB"
       ]
+    },
+    {
+      title: "6. End-to-End System Architecture & Swimlanes",
+      badge: "ARCHITECTURE",
+      color: "#6366f1",
+      img: "assets/06_pipeline_flow.png",
+      desc: "Complete multi-phase architectural blueprint mapping channel discovery, 3-worker concurrency, Whisper STT, Ollama dual-engine analysis, Levenshtein evidence grounding, and dual-tier persistence.",
+      features: [
+        "6 lifecycle transitions (1. QUEUED through 6. REPORT READY)",
+        "Thread pool worker concurrency with live SSE telemetry",
+        "Fast-path native caption shortcut bypassing audio extraction",
+        "Zero-hallucination Levenshtein fuzzy quote grounding"
+      ]
     }
   ];
 
   let html = `
     <div class="showcase-header">
-      <h2>📸 Live Application Showcase Gallery</h2>
-      <p>Interactive demonstration of the Political YouTube Channel Activity Monitor running on local workstation hardware.</p>
+      <h2>📸 Live Application & Architecture Showcase Gallery</h2>
+      <p>Interactive demonstration of the Political YouTube Channel Activity Monitor and its end-to-end processing architecture.</p>
     </div>
     <div class="showcase-grid">
   `;
