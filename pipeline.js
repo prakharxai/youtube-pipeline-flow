@@ -734,23 +734,22 @@ function renderCurrentView() {
 // 5. SVG Helper Functions (Refined Layout & No Text Overlap)
 // =============================================================================
 function svgNode(x, y, w, h, stageKey, title, subtitle, color, badgeText, statusDotColor) {
-  const isDark = currentTheme === "dark";
-  const pillBg = `${color}18`;
-  const pillBorder = `${color}50`;
+  const pillBg = `${color}14`;
+  const pillBorder = `${color}45`;
   const dotColor = statusDotColor || color;
-  const badgeWidth = Math.max(64, badgeText ? badgeText.length * 7 + 14 : 64);
-  const badgeX = w - badgeWidth - 10;
+  const badgeWidth = badgeText ? Math.max(50, badgeText.length * 6.6 + 12) : 0;
+  const badgeX = w - badgeWidth - 8;
 
   return `
     <g class="node-group" data-stage="${stageKey}" transform="translate(${x}, ${y})">
       <rect class="node-box" width="${w}" height="${h}" />
       <line x1="0" y1="0" x2="0" y2="${h}" stroke="${color}" stroke-width="4.5" stroke-linecap="round" />
-      <circle cx="16" cy="22" r="4.5" fill="${dotColor}" />
-      <text class="node-title" x="28" y="26">${title}</text>
+      <circle cx="16" cy="22" r="4" fill="${dotColor}" />
+      <text class="node-title" x="26" y="26">${title}</text>
       <text class="node-subtitle" x="16" y="46">${subtitle}</text>
       ${badgeText ? `
-        <rect x="${badgeX}" y="10" width="${badgeWidth}" height="20" rx="6" fill="${pillBg}" stroke="${pillBorder}" stroke-width="1" />
-        <text class="node-badge" x="${badgeX + badgeWidth / 2}" y="24" fill="${color}" text-anchor="middle">${badgeText}</text>
+        <rect x="${badgeX}" y="9" width="${badgeWidth}" height="20" rx="5" fill="${pillBg}" stroke="${pillBorder}" stroke-width="1" />
+        <text class="node-badge" x="${badgeX + badgeWidth / 2}" y="23" fill="${color}" text-anchor="middle">${badgeText}</text>
       ` : ""}
     </g>
   `;
@@ -861,83 +860,87 @@ function renderFullPipelineSVG() {
     ${svgDefinitions()}
 
     <!-- PHASE 1: SEQUENTIAL DISCOVERY & INGESTION GATE -->
-    ${svgSwimlane(20, 25, 1520, 160, "PHASE 1: SEQUENTIAL CHANNEL DISCOVERY & IDEMPOTENCY GATE", "Sequential Ingestion via youtube_collector.py (Channels -> DateFilter -> State Check)")}
+    ${svgSwimlane(20, 25, 1520, 155, "PHASE 1: SEQUENTIAL CHANNEL DISCOVERY & IDEMPOTENCY GATE", "Sequential Ingestion via youtube_collector.py (Channels -> DateFilter -> State Check)")}
     
-    ${svgNode(40, 75, 200, 65, "watchlist", "Watchlist Registry", "channels.yaml & settings", "#2563eb", "CONFIG", "#2563eb")}
-    ${svgEdge(240, 107, 280, 107, "arrow-blue", "#2563eb")}
+    ${svgNode(40, 70, 240, 62, "watchlist", "Watchlist Registry", "channels.yaml & settings", "#2563eb", "CONFIG", "#2563eb")}
+    ${svgEdge(280, 101, 320, 101, "arrow-blue", "#2563eb")}
 
-    ${svgNode(280, 75, 230, 65, "discovery", "Multi-Tab Scanner", "5 Dedicated Collectors", "#2563eb", "STAGE 1", "#2563eb")}
-    ${svgEdge(510, 107, 550, 107, "arrow-blue", "#2563eb")}
+    ${svgNode(320, 70, 250, 62, "discovery", "Multi-Tab Scanner", "5 Dedicated Collectors", "#2563eb", "STAGE 1", "#2563eb")}
+    ${svgEdge(570, 101, 610, 101, "arrow-blue", "#2563eb")}
 
-    ${svgNode(550, 75, 210, 65, "date_filter", "Temporal Matcher", "UTC window match", "#0891b2", "FILTER", "#0891b2")}
-    ${svgEdge(760, 107, 800, 107, "arrow-blue", "#2563eb")}
+    ${svgNode(610, 70, 240, 62, "date_filter", "Temporal Matcher", "UTC window match", "#0891b2", "FILTER", "#0891b2")}
+    ${svgEdge(850, 101, 890, 101, "arrow-blue", "#2563eb")}
 
-    ${svgNode(800, 75, 220, 65, "dedup", "Idempotency Gate", "state_manager.is_completed", "#7c3aed", "IDEMPOTENT", "#7c3aed")}
+    ${svgNode(890, 70, 240, 62, "dedup", "Idempotency Gate", "state_manager.is_completed", "#7c3aed", "IDEMPOTENT", "#7c3aed")}
+    ${svgEdge(1130, 101, 1170, 101, "arrow-purple", "#7c3aed")}
+
+    ${svgNode(1170, 70, 280, 62, "queue_dispatch", "Worker Pool Dispatcher", "ThreadPoolExecutor(3)", "#7c3aed", "PARALLEL POOL", "#7c3aed")}
     
     <!-- PHASE 2: CONCURRENT WORKER POOL & MULTI-TYPE DISPATCHER -->
-    ${svgSwimlane(20, 210, 1520, 260, "PHASE 2: CONCURRENT WORKER POOL & MULTI-TYPE DISPATCHER (PARALLEL EXECUTION)", "Items Enqueued across ThreadPoolExecutor(max_workers=3) with SSE Telemetry")}
+    ${svgSwimlane(20, 205, 1520, 270, "PHASE 2: CONCURRENT WORKER POOL & MULTI-TYPE DISPATCHER (PARALLEL EXECUTION)", "Items Enqueued across ThreadPoolExecutor(max_workers=3) with SSE Telemetry")}
     
-    <!-- Queue Dispatcher Node -->
-    ${svgCurvedEdge(1020, 107, 1080, 260, "arrow-purple", "#7c3aed", true)}
-    ${svgNode(1080, 245, 220, 65, "queue_dispatch", "Worker Pool Dispatcher", "ThreadPoolExecutor(3)", "#7c3aed", "PARALLEL POOL", "#7c3aed")}
-
     <!-- Parallel Sub-Branches Container -->
-    ${svgWorkerPool(40, 250, 990, 200, "PARALLEL ITEM INGESTION WORKERS (Item 1, Item 2, Item 3 concurrently processing)")}
+    ${svgWorkerPool(40, 245, 1480, 215, "CONCURRENT WORKER EXECUTION (Worker Threads 1, 2, 3 Processing Discovered Items in Parallel)")}
 
-    <!-- 4 Sub-Branches for Activity Types -->
-    ${svgCurvedEdge(1080, 277, 980, 290, "arrow-blue", "#2563eb", true)}
-    ${svgNode(760, 275, 210, 50, "download", "Video / Short Audio", "Opus stream acquisition", "#2563eb", "VIDEO/SHORT", "#2563eb")}
+    <!-- Curved feeder from dispatcher into worker pool -->
+    ${svgCurvedEdge(1310, 132, 1310, 265, "arrow-purple", "#7c3aed", true)}
 
-    ${svgCurvedEdge(1080, 277, 980, 345, "arrow-green", "#059669", true)}
-    ${svgNode(760, 335, 210, 50, "caption_shortcut", "Native Captions Bypass", "Official / Auto (~0.05s)", "#059669", "FAST PATH", "#059669")}
+    <!-- Track 1: Long Videos & Shorts (Audio fallback) -->
+    ${svgNode(70, 275, 270, 50, "download", "Video / Shorts Ingest", "Opus audio stream via yt-dlp", "#2563eb", "VIDEO/SHORT", "#2563eb")}
+    ${svgEdge(340, 300, 390, 300, "arrow-pink", "#db2777")}
+    ${svgNode(390, 275, 270, 50, "audio_norm", "16kHz Mono Resample", "FFmpeg WAV (Auto-cleanup)", "#db2777", "FFMPEG", "#db2777")}
 
-    ${svgCurvedEdge(1080, 277, 980, 405, "arrow-red", "#dc2626", true)}
-    ${svgNode(760, 395, 210, 50, "live_segmenter", "Live HLS Stream Slicer", "120s Rolling Audio Slice", "#dc2626", "LIVE STREAM", "#dc2626")}
+    <!-- Track 2: Native YouTube Captions Bypass (FAST PATH) -->
+    ${svgNode(70, 335, 270, 50, "caption_shortcut", "Native Captions Bypass", "Official / Auto (~0.05s fetch)", "#059669", "FAST PATH", "#059669")}
+    ${svgEdge(340, 360, 390, 360, "arrow-green", "#059669")}
+    ${svgNode(390, 335, 270, 50, "caption_shortcut", "Direct Transcript Ready", "Zero audio/GPU overhead", "#059669", "SKIP STT", "#059669")}
 
-    ${svgCurvedEdge(1080, 277, 680, 410, "arrow-purple", "#7c3aed", true)}
-    ${svgNode(460, 395, 200, 50, "post_text", "Post Text Parser", "Audio-free Community Post", "#7c3aed", "POST ONLY", "#7c3aed")}
+    <!-- Track 3: Live Streams (Active HLS Segmenter) -->
+    ${svgNode(70, 395, 270, 50, "live_segmenter", "Live HLS Stream Slicer", "120s Rolling Audio Segment", "#dc2626", "120s SLICE", "#dc2626")}
+    ${svgEdge(340, 420, 390, 420, "arrow-red", "#dc2626")}
+    ${svgNode(390, 395, 270, 50, "live_segmenter", "Live Audio Segment Ready", "Incremental stream tracking", "#dc2626", "LIVE STREAM", "#dc2626")}
 
-    <!-- Audio Normalization & Cleanup -->
-    ${svgEdge(760, 300, 400, 300, "arrow-pink", "#db2777")}
-    ${svgNode(190, 275, 200, 55, "audio_norm", "16kHz Mono Resample", "Auto-deleted after STT", "#db2777", "FFMPEG", "#db2777")}
+    <!-- Track 4: Community Posts (Audio-Free Text Extraction) -->
+    ${svgNode(730, 395, 280, 50, "post_text", "Community Post Parser", "Scrapes text & attached images", "#7c3aed", "AUDIO-FREE", "#7c3aed")}
+    ${svgEdge(1010, 420, 1060, 420, "arrow-purple", "#7c3aed")}
+    ${svgNode(1060, 395, 280, 50, "post_text", "Post Text Deliverable", "Bypasses audio & Whisper", "#7c3aed", "TEXT ONLY", "#7c3aed")}
 
     <!-- PHASE 3: SPEECH-TO-TEXT & GROUNDED AI EXTRACTION -->
-    ${svgSwimlane(20, 495, 1520, 200, "PHASE 3: SPEECH-TO-TEXT (CUDA) & GROUNDED AI EXTRACTION (OLLAMA DUAL-ENGINE)", "Chunked Extraction (>420s) & Programmatic Levenshtein Verification")}
+    ${svgSwimlane(20, 500, 1520, 195, "PHASE 3: SPEECH-TO-TEXT (CUDA) & GROUNDED AI EXTRACTION (OLLAMA DUAL-ENGINE)", "Chunked Extraction (>420s) & Programmatic Levenshtein Verification")}
     
-    <!-- Connect audio to Whisper -->
-    ${svgCurvedEdge(190, 330, 190, 550, "arrow-green", "#059669", true)}
-    ${svgNode(80, 550, 230, 65, "transcription", "Faster-Whisper CUDA", "float16 + VAD + Word Anchors", "#059669", "SPEECH", "#059669")}
+    <!-- Connect audio from Track 1 and Track 3 into Whisper -->
+    ${svgCurvedEdge(660, 300, 205, 560, "arrow-green", "#059669", true)}
+    ${svgCurvedEdge(660, 420, 205, 560, "arrow-green", "#059669", true)}
+    ${svgNode(60, 560, 290, 65, "transcription", "Faster-Whisper CUDA", "float16 + VAD + Word Anchors", "#059669", "SPEECH", "#059669")}
 
-    <!-- Connect Caption Shortcut to LLM directly (Bypassing Whisper) -->
-    ${svgCurvedEdge(760, 360, 400, 582, "arrow-green", "#059669", true)}
-
-    <!-- Connect Post Text to LLM directly (Bypassing Audio & Whisper) -->
-    ${svgCurvedEdge(460, 420, 400, 582, "arrow-purple", "#7c3aed", true)}
+    <!-- Connect Direct Transcripts (Track 2) and Post Text (Track 4) straight to LLM -->
+    ${svgCurvedEdge(660, 360, 555, 560, "arrow-green", "#059669", true)}
+    ${svgCurvedEdge(1200, 445, 555, 560, "arrow-purple", "#7c3aed", true)}
 
     <!-- Whisper -> LLM -->
-    ${svgEdge(310, 582, 400, 582, "arrow-amber", "#d97706")}
-    ${svgNode(400, 550, 250, 65, "llm_analysis", "Dual-Engine Ollama", "Gemma 3 12B / Qwen Fallback", "#d97706", "AI SYNTHESIS", "#d97706")}
+    ${svgEdge(350, 592, 410, 592, "arrow-amber", "#d97706")}
+    ${svgNode(410, 560, 310, 65, "llm_analysis", "Dual-Engine Ollama", "Gemma 3 12B / Qwen Fallback", "#d97706", "AI SYNTHESIS", "#d97706")}
     
-    ${svgEdge(650, 582, 730, 582, "arrow-cyan", "#0891b2")}
-    ${svgNode(730, 550, 250, 65, "evidence_validation", "Evidence Grounding", "Fuzzy overlap >= 60%", "#0891b2", "VERIFICATION", "#0891b2")}
+    ${svgEdge(720, 592, 780, 592, "arrow-cyan", "#0891b2")}
+    ${svgNode(780, 560, 290, 65, "evidence_validation", "Evidence Grounding", "Fuzzy overlap >= 60%", "#0891b2", "VERIFICATION", "#0891b2")}
 
-    ${svgEdge(980, 582, 1060, 582, "arrow-cyan", "#0891b2")}
-    ${svgNode(1060, 550, 250, 65, "citation_generation", "Deep Timestamp Anchors", "Clickable [&t=XXs] links", "#0891b2", "CITATIONS", "#0891b2")}
+    ${svgEdge(1070, 592, 1130, 592, "arrow-cyan", "#0891b2")}
+    ${svgNode(1130, 560, 310, 65, "citation_generation", "Deep Timestamp Anchors", "Clickable [&t=XXs] links", "#0891b2", "CITATIONS", "#0891b2")}
 
     <!-- PHASE 4: MULTI-FORMAT REPORTS, DUAL-TIER PERSISTENCE & SAFE AUDIT -->
-    ${svgSwimlane(20, 720, 1520, 180, "PHASE 4: MULTI-FORMAT REPORTS, DUAL-TIER STORAGE & SAFE DELETION", "Predictable NVMe Disk Files + MongoDB Indexing + Real-Time SSE Stream")}
+    ${svgSwimlane(20, 725, 1520, 175, "PHASE 4: MULTI-FORMAT REPORTS, DUAL-TIER STORAGE & SAFE DELETION", "Predictable NVMe Disk Files + MongoDB Indexing + Real-Time SSE Stream")}
     
-    ${svgCurvedEdge(1185, 615, 1185, 765, "arrow-purple", "#4f46e5", true)}
-    ${svgNode(1060, 765, 250, 65, "reports", "File-First Reports", "HTML + JSON + Markdown", "#4f46e5", "REPORTS", "#4f46e5")}
+    ${svgCurvedEdge(1285, 625, 1285, 775, "arrow-purple", "#4f46e5", true)}
+    ${svgNode(1130, 775, 310, 65, "reports", "File-First Reports", "HTML + JSON + Markdown", "#4f46e5", "REPORTS", "#4f46e5")}
 
-    ${svgEdge(1060, 797, 980, 797, "arrow-purple", "#4f46e5")}
-    ${svgNode(730, 765, 250, 65, "storage", "Dual Storage Engine", "NVMe atomic writes + Mongo", "#4f46e5", "PERSISTENCE", "#4f46e5")}
+    ${svgEdge(1130, 807, 1070, 807, "arrow-purple", "#4f46e5")}
+    ${svgNode(780, 775, 290, 65, "storage", "Dual Storage Engine", "NVMe atomic writes + Mongo", "#4f46e5", "PERSISTENCE", "#4f46e5")}
 
-    ${svgEdge(730, 797, 650, 797, "arrow-green", "#059669")}
-    ${svgNode(400, 765, 250, 65, "telemetry_sse", "Real-Time SSE Stream", "/api/events active telemetry", "#059669", "STREAMING", "#059669")}
+    ${svgEdge(780, 807, 720, 807, "arrow-green", "#059669")}
+    ${svgNode(410, 775, 310, 65, "telemetry_sse", "Real-Time SSE Stream", "/api/events active telemetry", "#059669", "STREAMING", "#059669")}
 
-    ${svgEdge(400, 797, 320, 797, "arrow-red", "#dc2626")}
-    ${svgNode(70, 765, 250, 65, "safe_deletion", "Safe Deletion Lifecycle", "2-Step Preview & Token Auth", "#dc2626", "GOVERNANCE", "#dc2626")}
+    ${svgEdge(410, 807, 350, 807, "arrow-red", "#dc2626")}
+    ${svgNode(60, 775, 290, 65, "safe_deletion", "Safe Deletion Lifecycle", "2-Step Preview & Token Auth", "#dc2626", "GOVERNANCE", "#dc2626")}
   </svg>
   `;
 }
@@ -952,67 +955,67 @@ function renderActivityFlowsSVG() {
 
     <!-- FLOW 1: LONG-FORM VIDEOS -->
     ${svgSwimlane(20, 20, 1520, 180, "FLOW 1: LONG-FORM YOUTUBE VIDEOS (PARLIAMENT DEBATES, SPEECHES, PRESS RELEASES)", "Native Captions shortcut (~0.05s) OR Fallback Audio -> Faster-Whisper CUDA -> 420s Chunking -> Grounded Citations")}
-    ${svgNode(40, 65, 180, 55, "discovery", "Video Ingestion", "yt-dlp flat playlist", "#2563eb", "DISCOVERY", "#2563eb")}
-    ${svgEdge(220, 92, 270, 92, "arrow-blue", "#2563eb")}
-    ${svgNode(270, 65, 210, 55, "caption_shortcut", "Captions Shortcut", "Native hi / en (<0.05s)", "#059669", "FAST PATH", "#059669")}
-    ${svgEdge(480, 92, 530, 92, "arrow-green", "#059669")}
-    ${svgNode(530, 65, 210, 55, "audio_norm", "Audio Resample", "16kHz Mono WAV (if needed)", "#db2777", "FALLBACK", "#db2777")}
-    ${svgEdge(740, 92, 790, 92, "arrow-pink", "#db2777")}
-    ${svgNode(790, 65, 220, 55, "transcription", "Whisper STT (CUDA)", "Silero VAD + Timestamps", "#059669", "SPEECH", "#059669")}
-    ${svgEdge(1010, 92, 1060, 92, "arrow-amber", "#d97706")}
-    ${svgNode(1060, 65, 220, 55, "llm_analysis", "Dual-Engine LLM", "420s Chunking Synthesis", "#d97706", "EXTRACTION", "#d97706")}
-    ${svgEdge(1280, 92, 1330, 92, "arrow-purple", "#4f46e5")}
-    ${svgNode(1330, 65, 190, 55, "reports", "Video Report", "Standalone HTML+JSON", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+    ${svgNode(40, 65, 225, 55, "discovery", "Video Ingestion", "yt-dlp flat playlist", "#2563eb", "DISCOVERY", "#2563eb")}
+    ${svgEdge(265, 92, 290, 92, "arrow-blue", "#2563eb")}
+    ${svgNode(290, 65, 230, 55, "caption_shortcut", "Captions Shortcut", "Native hi / en (<0.05s)", "#059669", "FAST PATH", "#059669")}
+    ${svgEdge(520, 92, 545, 92, "arrow-green", "#059669")}
+    ${svgNode(545, 65, 230, 55, "audio_norm", "Audio Resample", "16kHz Mono WAV", "#db2777", "FFMPEG", "#db2777")}
+    ${svgEdge(775, 92, 800, 92, "arrow-pink", "#db2777")}
+    ${svgNode(800, 65, 235, 55, "transcription", "Whisper STT (CUDA)", "Silero VAD + Timestamps", "#059669", "SPEECH", "#059669")}
+    ${svgEdge(1035, 92, 1060, 92, "arrow-amber", "#d97706")}
+    ${svgNode(1060, 65, 235, 55, "llm_analysis", "Dual-Engine LLM", "420s Chunking", "#d97706", "EXTRACTION", "#d97706")}
+    ${svgEdge(1295, 92, 1320, 92, "arrow-purple", "#4f46e5")}
+    ${svgNode(1320, 65, 200, 55, "reports", "Video Report", "Standalone HTML+JSON", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- FLOW 2: YOUTUBE SHORTS -->
     ${svgSwimlane(20, 230, 1520, 180, "FLOW 2: YOUTUBE SHORTS (<60s HIGH-IMPACT CLIPS & SOUNDBITES)", "Fast single-pass speech recognition & succinct key takeaway extraction with exact quote grounding")}
-    ${svgNode(40, 275, 180, 55, "discovery", "Shorts Discovery", "Channel /shorts tab", "#db2777", "DISCOVERY", "#db2777")}
-    ${svgEdge(220, 302, 270, 302, "arrow-pink", "#db2777")}
-    ${svgNode(270, 275, 210, 55, "caption_shortcut", "Captions Check", "Native transcript check", "#059669", "FAST PATH", "#059669")}
-    ${svgEdge(480, 302, 530, 302, "arrow-green", "#059669")}
-    ${svgNode(530, 275, 210, 55, "audio_norm", "Rapid WAV Slicer", "Immediate scratch WAV", "#db2777", "AUDIO", "#db2777")}
-    ${svgEdge(740, 302, 790, 302, "arrow-pink", "#db2777")}
-    ${svgNode(790, 275, 220, 55, "transcription", "Whisper Small/Turbo", "Instant STT (<1.5s total)", "#059669", "SPEECH", "#059669")}
-    ${svgEdge(1010, 302, 1060, 302, "arrow-amber", "#d97706")}
-    ${svgNode(1060, 275, 220, 55, "llm_analysis", "Single-Pass LLM", "Compact Takeaways", "#d97706", "EXTRACTION", "#d97706")}
-    ${svgEdge(1280, 302, 1330, 302, "arrow-purple", "#4f46e5")}
-    ${svgNode(1330, 275, 190, 55, "reports", "Shorts Report", "Quick Takeaway HTML", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+    ${svgNode(40, 275, 225, 55, "discovery", "Shorts Discovery", "Channel /shorts tab", "#db2777", "DISCOVERY", "#db2777")}
+    ${svgEdge(265, 302, 290, 302, "arrow-pink", "#db2777")}
+    ${svgNode(290, 275, 230, 55, "caption_shortcut", "Captions Check", "Native transcript check", "#059669", "FAST PATH", "#059669")}
+    ${svgEdge(520, 302, 545, 302, "arrow-green", "#059669")}
+    ${svgNode(545, 275, 230, 55, "audio_norm", "Rapid WAV Slicer", "Immediate scratch WAV", "#db2777", "AUDIO", "#db2777")}
+    ${svgEdge(775, 302, 800, 302, "arrow-pink", "#db2777")}
+    ${svgNode(800, 275, 235, 55, "transcription", "Whisper Small/Turbo", "Instant STT (<1.5s)", "#059669", "SPEECH", "#059669")}
+    ${svgEdge(1035, 302, 1060, 302, "arrow-amber", "#d97706")}
+    ${svgNode(1060, 275, 235, 55, "llm_analysis", "Single-Pass LLM", "Compact Takeaways", "#d97706", "EXTRACTION", "#d97706")}
+    ${svgEdge(1295, 302, 1320, 302, "arrow-purple", "#4f46e5")}
+    ${svgNode(1320, 275, 200, 55, "reports", "Shorts Report", "Quick Takeaway HTML", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- FLOW 3: COMMUNITY POSTS (AUDIO-FREE) -->
     ${svgSwimlane(20, 440, 1520, 180, "FLOW 3: YOUTUBE COMMUNITY POSTS (AUDIO-FREE TEXT & IMAGE ANNOUNCEMENTS)", "Bypasses download & Whisper completely -> Direct LLM post analysis -> Grounding against post text")}
-    ${svgNode(40, 485, 200, 55, "discovery", "Community Scraper", "InnerTube Backstage post", "#7c3aed", "DISCOVERY", "#7c3aed")}
-    ${svgEdge(240, 512, 310, 512, "arrow-purple", "#7c3aed")}
-    ${svgNode(310, 485, 240, 55, "post_text", "Post Text & Image Extractor", "Extracts author, text, images", "#7c3aed", "AUDIO-FREE", "#7c3aed")}
-    ${svgEdge(550, 512, 630, 512, "arrow-purple", "#7c3aed")}
-    ${svgNode(630, 485, 220, 55, "llm_analysis", "LLM Post Analyzer", "Entity & Intent Extraction", "#d97706", "AI ANALYSIS", "#d97706")}
-    ${svgEdge(850, 512, 930, 512, "arrow-cyan", "#0891b2")}
-    ${svgNode(930, 485, 230, 55, "evidence_validation", "Text Provenance Verifier", "Verified against post_text", "#0891b2", "VERIFICATION", "#0891b2")}
-    ${svgEdge(1160, 512, 1240, 512, "arrow-purple", "#4f46e5")}
-    ${svgNode(1240, 485, 200, 55, "reports", "Post Report", "Community Post HTML", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+    ${svgNode(40, 485, 240, 55, "discovery", "Community Scraper", "InnerTube Backstage post", "#7c3aed", "DISCOVERY", "#7c3aed")}
+    ${svgEdge(280, 512, 320, 512, "arrow-purple", "#7c3aed")}
+    ${svgNode(320, 485, 270, 55, "post_text", "Post Text & Images", "Author, text & images", "#7c3aed", "AUDIO-FREE", "#7c3aed")}
+    ${svgEdge(590, 512, 630, 512, "arrow-purple", "#7c3aed")}
+    ${svgNode(630, 485, 250, 55, "llm_analysis", "LLM Post Analyzer", "Entity & Intent Extraction", "#d97706", "AI ANALYSIS", "#d97706")}
+    ${svgEdge(880, 512, 920, 512, "arrow-cyan", "#0891b2")}
+    ${svgNode(920, 485, 260, 55, "evidence_validation", "Text Provenance", "Verified against post_text", "#0891b2", "VERIFY", "#0891b2")}
+    ${svgEdge(1180, 512, 1220, 512, "arrow-purple", "#4f46e5")}
+    ${svgNode(1220, 485, 230, 55, "reports", "Post Report", "Community Post HTML", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- FLOW 4: YOUTUBE LIVE STREAMS -->
     ${svgSwimlane(20, 650, 1520, 200, "FLOW 4: YOUTUBE LIVE STREAMS (ACTIVE LIVE_NOW, UPCOMING SCHEDULES, COMPLETED VODS)", "Active HLS 120s segment capture vs Scheduled broadcast intent vs Full VOD archival")}
-    ${svgNode(40, 695, 200, 55, "discovery", "Live Tab Detector", "/live & /streams endpoints", "#dc2626", "DISCOVERY", "#dc2626")}
+    ${svgNode(40, 695, 230, 55, "discovery", "Live Tab Detector", "/live & /streams tabs", "#dc2626", "DISCOVERY", "#dc2626")}
     
     <!-- 3 Live Status Branches -->
-    ${svgCurvedEdge(240, 722, 310, 690, "arrow-red", "#dc2626")}
-    ${svgNode(310, 665, 240, 50, "live_segmenter", "LIVE_NOW: HLS Slicer", "120s Rolling Audio Segment", "#dc2626", "ACTIVE STREAM", "#dc2626")}
+    ${svgCurvedEdge(270, 722, 310, 690, "arrow-red", "#dc2626")}
+    ${svgNode(310, 665, 250, 50, "live_segmenter", "LIVE_NOW: HLS Slicer", "120s Rolling Audio Slice", "#dc2626", "ACTIVE STREAM", "#dc2626")}
     
-    ${svgCurvedEdge(240, 722, 310, 750, "arrow-amber", "#d97706")}
-    ${svgNode(310, 725, 240, 50, "discovery", "UPCOMING: Broadcast Plan", "Metadata & Intent Catalog", "#d97706", "SCHEDULED", "#d97706")}
+    ${svgCurvedEdge(270, 722, 310, 750, "arrow-amber", "#d97706")}
+    ${svgNode(310, 725, 250, 50, "discovery", "UPCOMING: Schedule", "Metadata & Intent Catalog", "#d97706", "SCHEDULED", "#d97706")}
 
-    ${svgCurvedEdge(240, 722, 310, 810, "arrow-blue", "#2563eb")}
-    ${svgNode(310, 785, 240, 50, "download", "COMPLETED: VOD Ingestion", "Full Broadcast Archival", "#2563eb", "FINISHED VOD", "#2563eb")}
+    ${svgCurvedEdge(270, 722, 310, 810, "arrow-blue", "#2563eb")}
+    ${svgNode(310, 785, 250, 50, "download", "COMPLETED: VOD", "Full Broadcast Archival", "#2563eb", "VOD ARCHIVE", "#2563eb")}
 
-    ${svgEdge(550, 690, 620, 747, "arrow-green", "#059669")}
-    ${svgEdge(550, 750, 620, 747, "arrow-amber", "#d97706")}
-    ${svgEdge(550, 810, 620, 747, "arrow-blue", "#2563eb")}
+    ${svgEdge(560, 690, 630, 747, "arrow-green", "#059669")}
+    ${svgEdge(560, 750, 630, 747, "arrow-amber", "#d97706")}
+    ${svgEdge(560, 810, 630, 747, "arrow-blue", "#2563eb")}
 
-    ${svgNode(620, 720, 240, 55, "transcription", "Speech & Intent Processing", "Whisper OR Metadata LLM", "#059669", "PROCESSING", "#059669")}
-    ${svgEdge(860, 747, 930, 747, "arrow-cyan", "#0891b2")}
-    ${svgNode(930, 720, 240, 55, "evidence_validation", "Live Timestamp Citation", "Exact livestream playback", "#0891b2", "GROUNDING", "#0891b2")}
-    ${svgEdge(1170, 747, 1240, 747, "arrow-purple", "#4f46e5")}
-    ${svgNode(1240, 720, 220, 55, "reports", "Live Report (is_incremental)", "Dynamic Live Status Card", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+    ${svgNode(630, 720, 260, 55, "transcription", "Speech & Intent Engine", "Whisper OR Metadata LLM", "#059669", "PROCESSING", "#059669")}
+    ${svgEdge(890, 747, 940, 747, "arrow-cyan", "#0891b2")}
+    ${svgNode(940, 720, 260, 55, "evidence_validation", "Live Timestamp Citation", "Exact livestream playback", "#0891b2", "GROUNDING", "#0891b2")}
+    ${svgEdge(1200, 747, 1250, 747, "arrow-purple", "#4f46e5")}
+    ${svgNode(1250, 720, 240, 55, "reports", "Live Report (incremental)", "Dynamic Live Status Card", "#4f46e5", "REPORT", "#4f46e5")}
   </svg>
   `;
 }
