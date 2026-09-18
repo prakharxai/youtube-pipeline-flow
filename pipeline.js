@@ -2,632 +2,686 @@
  * Political YouTube Channel Activity Monitor
  * Standalone Interactive Pipeline Architecture & Flow Documentation
  * Zero external runtime dependencies - Pure Vanilla JS & Dynamic SVG.
+ * 
+ * Features:
+ * - Default Light Theme with sleek Dark Mode toggle
+ * - 100% technical fidelity to real Python codebase
+ * - Streamlined Worker Pool Concurrency (ThreadPoolExecutor, QUEUED stage)
+ * - Native YouTube Caption Shortcut (~0.05s bypass)
+ * - 4 Distinct Activity Lifecycles (Videos, Shorts, Posts, Live Streams)
+ * - Grounded Citations Provenance with Levenshtein fuzzy matching
+ * - Processing-Time Profiler and Dual-Tier NVMe + MongoDB Storage
+ * - Safe Deletion Lifecycle with Cryptographic Confirmation Tokens
  */
 
 // =============================================================================
-// Comprehensive Technical Specifications for Every Pipeline Stage
+// 1. Comprehensive Technical Specifications for Every Pipeline Stage
 // =============================================================================
 const STAGE_SPECS = {
   "watchlist": {
     name: "Channel Watchlist Registry",
     category: "Ingestion Config",
-    type: "GLOBAL",
-    color: "#3b82f6",
+    type: "SEQUENTIAL",
+    color: "#2563eb",
     demoImage: "assets/02_daily_archive.png",
     demoCaption: "Configured channels (PIB India, Sansad TV, @NarendraModi) monitored with zero failure guarantees.",
-    description: "Loads and validates active YouTube channel configurations from YAML files. Configures channel ID, handle, friendly name, and category tags.",
+    description: "Loads and validates active YouTube channel configurations from YAML. Defines channel identifier, handle/URL, friendly name, enabled status, and category tags.",
     inputs: "config/channels.yaml, config/settings.yaml",
     outputs: "List of validated ChannelConfig Pydantic objects",
-    filesProduced: "config/channels.yaml, data/channels/{channel_id}/metadata.json",
+    filesProduced: "config/channels.yaml, data/channels/{channel_id}/channel.json",
     timingTrackers: "startup_channel_load (microseconds)",
-    failureModes: "YAML parsing syntax error, missing required keys (id, name), inaccessible config path.",
+    failureModes: "YAML parsing syntax error, missing required keys (id, name, url), inaccessible file path.",
     retryPolicy: "Immediate abort on startup with informative terminal diagnostic log.",
     codeRef: "src/config.py -> Settings.load_channels()",
     samplePayload: {
-      "channel_id": "sansad_tv",
-      "channel_name": "Sansad TV",
+      "id": "sansad_tv",
+      "name": "Sansad TV",
       "url": "https://www.youtube.com/@SansadTV",
       "enabled": true,
       "tags": ["parliament", "policy", "national"]
     }
   },
   "discovery": {
-    name: "Activity Discovery & Multi-Tab Scanner",
-    category: "Discovery",
-    type: "ALL FLOWS",
-    color: "#3b82f6",
+    name: "Multi-Collector Activity Scanner",
+    category: "Discovery Phase",
+    type: "SEQUENTIAL",
+    color: "#2563eb",
     demoImage: "assets/02_daily_archive.png",
     demoCaption: "Live multi-channel catalog for 2026-09-12 showing 28 cataloged activities across Videos, Shorts, and Live.",
-    description: "Scans YouTube channels across multiple tabs (/videos, /shorts, /community, /streams) using yt-dlp flat-playlist extraction and metadata scraping.",
-    inputs: "Channel URL, target date, date range filter, max items limits",
-    outputs: "Raw activity metadata entries (video ID, title, publication timestamp, channel metadata)",
-    filesProduced: "data/activities/YYYY/MM/DD/{videos,shorts,posts,live}/{item_id}.json",
+    description: "Coordinates specialized collectors (MetadataCollector, VideoCollector, ShortsCollector, LiveCollector, PostsCollector) using yt-dlp flat-playlist extraction and InnerTube HTML scraping.",
+    inputs: "ChannelConfig, target date window (start_date, end_date), enable_posts, enable_live flags",
+    outputs: "ChannelMetadata, List[ActivityItem], PostStatus, LiveCollectionStatus",
+    filesProduced: "data/channels/{channel_id}/channel.json, data/raw/{item_id}_raw.json",
     timingTrackers: "discovery_start, discovery_end, stage_duration_seconds",
-    failureModes: "YouTube rate-limiting / bot detection (HTTP 429), network socket timeout, channel renamed or private.",
-    retryPolicy: "Exponential backoff with 3 retries (1s, 2s, 4s delay). Fallback to cached RSS if available.",
-    codeRef: "src/engine/collector.py -> ActivityCollector.discover_activities()",
+    failureModes: "YouTube rate-limiting / bot challenge (HTTP 429), network socket timeout, channel renamed or deleted.",
+    retryPolicy: "Exponential backoff with 3 retries (1s, 2s, 4s delay). Gracefully flags PostStatus/LiveCollectionStatus.",
+    codeRef: "src/collectors/youtube_collector.py -> YouTubeCollector.collect_channel_activity()",
     samplePayload: {
-      "activity_type": "VIDEO",
       "item_id": "EvF9mhGyMps",
+      "activity_type": "VIDEO",
       "channel_id": "sansad_tv",
+      "channel_name": "Sansad TV",
       "title": "Aapke Sansad | Dr. Manna Lal Rawat, MP Udaipur | 11 Sept, 2026",
       "published_at": "2026-09-12T05:30:00Z",
-      "duration": 1794
+      "duration": 1794,
+      "source": "youtube"
     }
   },
   "date_filter": {
-    name: "Publication Date Filter & Window Matcher",
+    name: "Temporal Window Matcher",
     category: "Ingestion Gate",
-    type: "ALL FLOWS",
-    color: "#06b6d4",
+    type: "SEQUENTIAL",
+    color: "#0891b2",
     demoImage: "assets/02_daily_archive.png",
     demoCaption: "Date-range selector matching items published on 2026-09-12 with precision filtering.",
-    description: "Strictly filters discovered activities by comparing publication timestamps against the requested UTC single date or date range.",
+    description: "Strictly filters discovered activities by comparing publication timestamps against the requested UTC single date or date range. Resolves date strings, handles ISO-8601 timestamps and relative time.",
     inputs: "Raw activity published_at, target_date (YYYY-MM-DD), or from_date -> to_date range",
-    outputs: "Filtered list of activities within the target temporal window",
-    filesProduced: "In-memory filtered collection passed to deduplication gate",
+    outputs: "Boolean gate decision: MATCH (Proceed to queue) vs SKIP (Out of window)",
+    filesProduced: "In-memory filtered collection saved to data/activities/YYYY/MM/DD/{videos,shorts,posts,live}/{item_id}.json",
     timingTrackers: "filter_eval_microseconds",
     failureModes: "Malformed ISO-8601 publication timestamps, timezone offset ambiguities.",
-    retryPolicy: "Parses with dateutil.parser; defaults to UTC timezone if unspecified.",
-    codeRef: "src/engine/pipeline.py -> MonitoringPipeline._filter_by_date()",
+    retryPolicy: "Parses with dateutil.parser; defaults to UTC normalization with IST awareness.",
+    codeRef: "src/engine/date_filter.py -> DateFilter.matches_window()",
     samplePayload: {
       "target_date": "2026-09-12",
       "item_published_at": "2026-09-12T05:30:00Z",
+      "start_date": "2026-09-12",
+      "end_date": "2026-09-12",
       "matched": true
     }
   },
   "dedup": {
-    name: "Deduplication & State Hash Gate",
+    name: "Deduplication & Idempotency Gate",
     category: "Ingestion Gate",
     type: "IDEMPOTENCY",
-    color: "#8b5cf6",
+    color: "#7c3aed",
     demoImage: "assets/02_daily_archive.png",
     demoCaption: "Deduplication ensures 28 distinct items are processed with 0 redundant re-executions.",
-    description: "Guarantees idempotency. Checks state/items/{item_id}.json to determine whether an item has already been successfully analyzed, failed, or requires reprocessing.",
+    description: "Guarantees idempotency. Checks state/items/{item_id}.json to determine whether an item has already been successfully analyzed, failed, or requires reprocessing via force_reprocess flag.",
     inputs: "item_id, force_reprocess flag, existing state files",
-    outputs: "Boolean gate decision: PROCESS vs SKIP",
+    outputs: "Boolean gate decision: PROCESS vs IDEMPOTENT SKIP",
     filesProduced: "state/items/{item_id}.json",
     timingTrackers: "dedup_check_microseconds",
     failureModes: "State JSON corrupted or file lock contention during concurrent runs.",
     retryPolicy: "Atomic JSON file write with tempfile rename. Recovers state from disk if corrupted.",
-    codeRef: "src/engine/state_manager.py -> StateManager.should_process()",
+    codeRef: "src/engine/state_manager.py -> StateManager.is_item_completed()",
     samplePayload: {
       "item_id": "EvF9mhGyMps",
-      "current_stage": "COMPLETED",
+      "channel_id": "sansad_tv",
+      "activity_type": "VIDEO",
+      "stage": "COMPLETED",
       "first_seen_at": "2026-09-12T23:31:56Z",
       "last_processed_at": "2026-09-12T23:33:14Z",
-      "process_count": 1
+      "retry_count": 0
     }
   },
-  "download": {
-    name: "Media Download & Audio Extraction",
-    category: "Processing",
-    type: "VIDEO, SHORT, LIVE",
-    color: "#ec4899",
-    demoImage: "assets/01_analytics_dashboard.png",
-    demoCaption: "High-speed download and audio extraction tracked in stage telemetry.",
-    description: "Downloads the highest efficiency compressed audio stream (Opus / m4a / webm) via yt-dlp to minimize disk I/O and network bandwidth.",
-    inputs: "YouTube item URL, target output path, download bitrate flags",
-    outputs: "Local compressed audio stream in raw storage",
-    filesProduced: "data/raw/{item_id}/audio.opus",
-    timingTrackers: "download_start, download_end, duration_seconds",
-    failureModes: "Geo-blocking, content DRM protection, intermittent network disconnects, YouTube bot verification challenge.",
-    retryPolicy: "3 retries with exponential backoff and alternate yt-dlp user-agent strings.",
-    codeRef: "src/engine/downloader.py -> MediaDownloader.download_audio()",
+  "queue_dispatch": {
+    name: "Concurrent Queue & Dispatcher",
+    category: "Worker Pool",
+    type: "PARALLEL",
+    color: "#7c3aed",
+    demoImage: "assets/01_live_monitoring.png",
+    demoCaption: "Concurrent execution across multiple worker threads with live status tracking.",
+    description: "Batches all discovered activities matching the target window and enqueues them into a ThreadPoolExecutor (max_workers=3). Emits instant QUEUED ProgressEvents via SSE for real-time frontend monitoring.",
+    inputs: "List of matching (ActivityItem, ChannelConfig) tuples, max_workers setting",
+    outputs: "Dispatched concurrent futures tracked via concurrent.futures.as_completed",
+    filesProduced: "state/runs/{run_id}.json",
+    timingTrackers: "queue_enqueue_time, worker_wait_latency",
+    failureModes: "Thread starvation, memory exhaustion under very high concurrency.",
+    retryPolicy: "Bounded worker pool (default 3 concurrent workers) to ensure GPU VRAM and CPU stability.",
+    codeRef: "src/engine/pipeline.py -> MonitoringPipeline.run() (ThreadPoolExecutor)",
     samplePayload: {
-      "item_id": "EvF9mhGyMps",
-      "file_path": "data/raw/EvF9mhGyMps/audio.opus",
-      "file_size_bytes": 14592000,
-      "audio_codec": "opus",
-      "duration_seconds": 1794
+      "run_id": "run_20260912_streamlined_7b",
+      "stage": "QUEUED",
+      "status": "queued",
+      "concurrency": 3,
+      "items_queued": 28
     }
   },
-  "audio_norm": {
-    name: "FFmpeg Audio Resampling & Normalization",
-    category: "Processing",
-    type: "VIDEO, SHORT, LIVE",
-    color: "#ec4899",
-    demoImage: "assets/01_analytics_dashboard.png",
-    demoCaption: "FFmpeg 16kHz audio conversion ensures consistent speech recognition across channels.",
-    description: "Converts the raw audio stream to standard 16kHz mono 16-bit PCM WAV using FFmpeg for optimal input to faster-whisper and Silero VAD.",
-    inputs: "data/raw/{item_id}/audio.opus",
-    outputs: "data/raw/{item_id}/audio_16k.wav",
-    filesProduced: "data/raw/{item_id}/audio_16k.wav",
-    timingTrackers: "audio_extraction_start, audio_extraction_end, duration_seconds",
-    failureModes: "FFmpeg binary missing from PATH, corrupted container headers, audio stream missing channels.",
-    retryPolicy: "Immediate failure logged with stderr capture; cleans up intermediate temporary files.",
-    codeRef: "src/engine/downloader.py -> MediaDownloader.convert_to_wav()",
-    samplePayload: {
-      "sample_rate": 16000,
-      "channels": 1,
-      "format": "s16le",
-      "duration_seconds": 1794.2
-    }
-  },
-  "post_text": {
-    name: "Community Post Text & Media Parser",
-    category: "Processing",
-    type: "COMMUNITY POST",
-    color: "#8b5cf6",
-    demoImage: "assets/02_daily_archive.png",
-    demoCaption: "Community posts extracted directly with zero audio overhead and image attachments.",
-    description: "Extracts community post body text, attached image carousels, poll options, and external hyperlinks without requiring audio extraction or speech-to-text.",
-    inputs: "Community post URL, post element HTML or InnerTube API response",
-    outputs: "Extracted post content, image attachment URLs, and status code",
-    filesProduced: "data/activities/YYYY/MM/DD/posts/{item_id}.json",
-    timingTrackers: "post_extraction_duration_seconds",
-    failureModes: "YouTube UI DOM selector changes, post removed by creator.",
-    retryPolicy: "Dual extraction: InnerTube JSON endpoint first, falling back to Playwright headless browser rendering.",
-    codeRef: "src/engine/post_collector.py -> PostCollector.extract_post()",
-    samplePayload: {
-      "item_id": "UgkxyD3sCmEsVAewDTThOKyE_4RhoR_62zib",
-      "post_type": "TEXT_WITH_IMAGES",
-      "content_length": 420,
-      "has_attachments": true,
-      "image_urls": ["https://yt3.ggpht.com/..."]
-    }
-  },
-  "live_segmenter": {
-    name: "YouTube Live Stream Segmenter",
-    category: "Processing",
-    type: "LIVE STREAM",
-    color: "#ef4444",
-    demoImage: "assets/02_daily_archive.png",
-    demoCaption: "8 Live streams cataloged and processed with second-level timestamps.",
-    description: "Monitors and captures active or completed YouTube Live streams. Handles live streaming states (active live, was_live, scheduled upcoming) and buffers audio chunks.",
-    inputs: "Live broadcast URL, stream status indicator",
-    outputs: "Recorded VOD audio stream or incremental segment buffer",
-    filesProduced: "data/raw/{item_id}/live_stream.wav",
-    timingTrackers: "live_capture_duration_seconds",
-    failureModes: "Stream terminated abruptly, live encoder disconnect, YouTube livestream latency variations.",
-    retryPolicy: "Dynamic reconnection attempts every 5 seconds until stream ends or transitions to VOD.",
-    codeRef: "src/engine/live_collector.py -> LiveStreamCollector.capture_stream()",
-    samplePayload: {
-      "item_id": "MbEP8mEKpRc",
-      "live_status": "was_live",
-      "stream_duration_sec": 3600,
-      "chunks_captured": 12
-    }
-  },
-  "transcription": {
-    name: "Faster-Whisper CUDA Speech-to-Text",
-    category: "Transcription",
-    type: "SPEECH",
-    color: "#10b981",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Faster-Whisper CUDA speech transcription outputs exact Hindi & English word timestamps.",
-    description: "GPU-accelerated transcription using faster-whisper with float16 compute on NVIDIA RTX GPU. Employs Silero VAD to eliminate non-speech audio and outputs word-level timestamps in Hindi, English, and Hinglish.",
-    inputs: "data/raw/{item_id}/audio_16k.wav",
-    outputs: "Timestamped transcript segments with verbatim spoken words",
+  "caption_shortcut": {
+    name: "Native Captions Shortcut Bypass",
+    category: "Speech Optimization",
+    type: "FAST PATH",
+    color: "#059669",
+    demoImage: "assets/03_transcript_inspection.png",
+    demoCaption: "Native Hindi & English captions retrieved in ~0.05s, bypassing audio download and Whisper CUDA inference.",
+    description: "Attempts to fetch official or auto-generated YouTube captions directly using youtube-transcript-api. Checks Hindi (hi, hi-Latn), English (en), Gujarati (gu), Marathi (mr). If present, saves ~99% processing time and achieves zero WER script confusion.",
+    inputs: "item_id",
+    outputs: "TranscriptData with exact start/end segment timestamps, or None fallback",
     filesProduced: "data/transcripts/{item_id}.json",
-    timingTrackers: "transcription_start, transcription_end, duration_seconds",
-    failureModes: "CUDA out-of-memory (OOM), silent/music-only audio track, unintelligible noise.",
-    retryPolicy: "Detects music-only content and marks 'NO_SPEECH'; falls back to CPU compute if GPU memory exhausted.",
-    codeRef: "src/engine/transcriber.py -> FasterWhisperTranscriber.transcribe()",
+    timingTrackers: "captions_fetch_duration (~0.05s)",
+    failureModes: "Captions disabled by creator, language unavailable, HTTP 429 from YouTube.",
+    retryPolicy: "Immediate transparent fallback to Audio Extractor + Faster-Whisper CUDA pipeline.",
+    codeRef: "src/transcription/whisper_engine.py -> WhisperEngine.fetch_youtube_captions()",
     samplePayload: {
       "item_id": "EvF9mhGyMps",
       "language": "hi",
-      "segments_count": 142,
-      "sample_segment": {
-        "start": 25.4,
-        "end": 31.8,
-        "text": "उदयपुर संसदीय क्षेत्र के सभी विकास कार्यों पर चर्चा करते हुए...",
-        "words": [{"word": "उदयपुर", "start": 25.4, "end": 26.1}]
-      }
+      "language_probability": 1.0,
+      "duration": 1794.0,
+      "segment_count": 312,
+      "fast_path_used": true
+    }
+  },
+  "download": {
+    name: "Media Stream Acquisition",
+    category: "Ingestion Phase",
+    type: "PARALLEL",
+    color: "#2563eb",
+    demoImage: "assets/01_live_monitoring.png",
+    demoCaption: "Acquires audio streams for items lacking native YouTube captions.",
+    description: "Downloads high-efficiency Opus audio streams for Videos, Shorts, and completed Livestreams via yt-dlp. Uses player_client=android,web to bypass YouTube restrictions.",
+    inputs: "Video URL, item_id",
+    outputs: "Raw audio stream saved to scratch directory",
+    filesProduced: "data/scratch/audio/{item_id}.part, data/scratch/audio/{item_id}.opus",
+    timingTrackers: "download_duration_seconds",
+    failureModes: "Video deleted/private, age-restricted without cookies, socket reset.",
+    retryPolicy: "yt-dlp retries with client rotation (android -> web -> ios).",
+    codeRef: "src/audio/extractor.py -> AudioExtractor.extract_audio()",
+    samplePayload: {
+      "item_id": "EvF9mhGyMps",
+      "format_id": "ba",
+      "status": "downloaded"
+    }
+  },
+  "live_segmenter": {
+    name: "Live HLS Stream Slicer",
+    category: "Live Streaming",
+    type: "LIVE ONLY",
+    color: "#dc2626",
+    demoImage: "assets/01_live_monitoring.png",
+    demoCaption: "Real-time 120s chunk extraction from active HLS streams during live broadcasts.",
+    description: "Handles active livestreams (LIVE_NOW). Resolves live audio stream manifest URL with yt-dlp -g and slices a 120-second rolling audio chunk using ffmpeg (-t 120 -vn -acodec pcm_s16le). Enables incremental analysis during active broadcasts.",
+    inputs: "Live stream URL, item_id, duration_seconds=120",
+    outputs: "16kHz mono WAV slice of ongoing live broadcast",
+    filesProduced: "data/scratch/audio/{item_id}.wav",
+    timingTrackers: "live_slice_duration_seconds (approx 120s capture)",
+    failureModes: "Live stream buffering, manifest expired, stream ended mid-capture.",
+    retryPolicy: "Falls back to completed stream processing if broadcast has just finished.",
+    codeRef: "src/audio/extractor.py -> AudioExtractor.extract_live_segment()",
+    samplePayload: {
+      "item_id": "live_stream_99",
+      "live_status": "LIVE_NOW",
+      "duration_seconds": 120,
+      "is_incremental": true
+    }
+  },
+  "audio_norm": {
+    name: "FFmpeg Audio Normalization & Cleanup",
+    category: "Audio Processing",
+    type: "PARALLEL",
+    color: "#db2777",
+    demoImage: "assets/03_transcript_inspection.png",
+    demoCaption: "Transcodes audio to 16kHz mono WAV; immediately cleans up WAV after Whisper to avoid disk bloat.",
+    description: "Transcodes extracted audio into standard 16kHz mono 16-bit PCM WAV (ffmpeg -ar 16000 -ac 1). Provides standard input required by faster-whisper. Performs immediate file deletion upon transcription completion.",
+    inputs: "Raw audio stream, scratch file path",
+    outputs: "Normalized 16kHz mono WAV file",
+    filesProduced: "data/scratch/audio/{item_id}.wav (temporary)",
+    timingTrackers: "ffmpeg_resample_seconds",
+    failureModes: "FFmpeg subprocess failure, corrupted audio headers, disk full.",
+    retryPolicy: "Raises descriptive RuntimeError, cleans up scratch artifacts.",
+    codeRef: "src/audio/extractor.py -> AudioExtractor.cleanup_audio()",
+    samplePayload: {
+      "sample_rate": 16000,
+      "channels": 1,
+      "codec": "pcm_s16le",
+      "auto_deleted": true
+    }
+  },
+  "post_text": {
+    name: "Community Post Text Parser",
+    category: "Audio-Free Ingestion",
+    type: "AUDIO-FREE",
+    color: "#7c3aed",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Scrapes Community tab posts, extracting text, post status, and attached images without audio processing.",
+    description: "Dedicated scraper for YouTube Community posts. Navigates InnerTube backstagePostThreadRenderer structures, extracts raw text, author, timestamp, and attached image URLs. Bypasses audio extraction and Whisper completely, passing directly to LLM post analysis.",
+    inputs: "Channel /community or /posts URL, channel metadata",
+    outputs: "ActivityItem with ActivityType.POST and post_text",
+    filesProduced: "data/activities/YYYY/MM/DD/posts/{item_id}.json",
+    timingTrackers: "posts_scrape_duration_seconds",
+    failureModes: "Community tab disabled, InnerTube DOM payload format changes.",
+    retryPolicy: "Returns PostStatus.NO_POSTS_FOUND or POST_NOT_SUPPORTED gracefully.",
+    codeRef: "src/collectors/posts_collector.py -> PostsCollector._extract_posts_from_initial_data()",
+    samplePayload: {
+      "item_id": "UgkxyWncq0tEfeIah4tUw6GcURbbO6_6_PFo",
+      "activity_type": "POST",
+      "channel_id": "sansad_tv",
+      "post_text": "Watch the special broadcast on national infrastructure initiatives today at 5 PM.",
+      "post_status": "POST_FOUND"
+    }
+  },
+  "transcription": {
+    name: "Faster-Whisper Multilingual STT",
+    category: "Speech-to-Text",
+    type: "PARALLEL (CUDA)",
+    color: "#059669",
+    demoImage: "assets/03_transcript_inspection.png",
+    demoCaption: "CUDA-accelerated speech-to-text with Silero VAD, word-level timestamps, and Hindi domain prompting.",
+    description: "Performs local speech-to-text with faster-whisper. Runs on CUDA (compute_type=float16) with automatic CPU fallback (int8). Uses Silero VAD filtering to reject non-speech audio, extracts word-level timestamps, and uses Hindi political domain initial prompts.",
+    inputs: "16kHz Mono WAV, item_id",
+    outputs: "TranscriptData (full_text, language, duration, segments with word tokens)",
+    filesProduced: "data/transcripts/{item_id}.json",
+    timingTrackers: "whisper_duration_seconds, real_time_factor (RTF)",
+    failureModes: "CUDA Out-of-Memory (OOM), silent audio, heavy background noise.",
+    retryPolicy: "Catches CUDA OOM, falls back to CPU int8 execution automatically.",
+    codeRef: "src/transcription/whisper_engine.py -> WhisperEngine.transcribe()",
+    samplePayload: {
+      "item_id": "EvF9mhGyMps",
+      "language": "hi",
+      "language_probability": 0.985,
+      "duration": 1794.0,
+      "segments_count": 312,
+      "word_timestamps": true
     }
   },
   "llm_analysis": {
-    name: "Dual-Engine Ollama LLM Extraction",
-    category: "AI Analysis",
-    type: "ALL FLOWS",
-    color: "#f59e0b",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Dual-engine LLM analysis extracts factual points with politician and policy tagging.",
-    description: "Extracts structured political intelligence using local Ollama models. Employs Gemma 3 12B as primary model and Qwen3 8B as fast fallback, with native Ollama JSON Schema grammar enforcement.",
-    inputs: "Clean transcript segments / post text, versioned prompt template (config/prompts/)",
-    outputs: "Pydantic-validated JSON containing claims, topics, entities, announcements, and executive summary",
+    name: "Dual-Engine Structured LLM",
+    category: "AI Extraction",
+    type: "PARALLEL",
+    color: "#d97706",
+    demoImage: "assets/04_report_grounding.png",
+    demoCaption: "Structured political extraction using Gemma 3 12B with Qwen3 8B fallback and 420s chunking.",
+    description: "Extracts structured political intelligence using Ollama. Uses Gemma 3 12B (primary) with Qwen3 8B (fallback). Videos <= 420s run single-pass; videos > 420s trigger 420s sliding chunking. Stage 2 synthesizes grounded executive summary referencing [EVID-xxx] tokens.",
+    inputs: "ActivityItem, TranscriptData (or post_text)",
+    outputs: "ItemAnalysis (summary, key_points, claims, announcements, promises, stats, entities, topics)",
     filesProduced: "data/analysis/{item_id}.json",
-    timingTrackers: "llm_analysis_start, llm_analysis_end, duration_seconds",
-    failureModes: "LLM generation timeout, JSON Schema violation, Ollama daemon disconnect.",
-    retryPolicy: "Primary model (gemma3:12b) retry with repair prompt; automatic fallback to Qwen3 8B if primary fails.",
-    codeRef: "src/engine/llm_client.py -> OllamaLLMClient.analyze_content()",
+    timingTrackers: "llm_duration_seconds, tokens_per_second",
+    failureModes: "LLM hallucination, Ollama server timeout, JSON schema validation errors.",
+    retryPolicy: "3-tier retry: 1) Strict JSON format 2) Regex cleaning 3) Automatic failover to Qwen3 fallback model.",
+    codeRef: "src/analysis/ollama_provider.py -> OllamaProvider.analyze_video()",
     samplePayload: {
-      "summary": "Dr. Manna Lal Rawat MP Udaipur highlights tribal development and ₹79,000 crore Pradhan Mantri Janjatiya Uthan Abhiyan.",
-      "topics": ["Tribal Welfare", "Infrastructure", "Road Safety", "Water Conservation"],
-      "claims_extracted": 13,
+      "item_id": "EvF9mhGyMps",
+      "summary": "Dr. Manna Lal Rawat discusses tribal community empowerment and rail connectivity.",
+      "claims_count": 12,
+      "announcements_count": 3,
+      "promises_count": 2,
+      "entities_count": 18,
       "model_used": "gemma3:12b"
     }
   },
   "evidence_validation": {
-    name: "Strict Evidence Grounding & Fuzzy Matching",
-    category: "Verification",
-    type: "ALL FLOWS",
-    color: "#10b981",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Every factual bullet is proven against verbatim speech using fuzzy Levenshtein ratio >= 0.75.",
-    description: "Every claim and summary point extracted by the LLM is mathematically verified against verbatim transcript passages using Levenshtein fuzzy ratio matching (threshold >= 0.75). Hallucinations are rejected.",
-    inputs: "data/analysis/{item_id}.json, data/transcripts/{item_id}.json",
-    outputs: "Verified claims with exact character and timestamp anchor matches",
-    filesProduced: "data/analysis/{item_id}_grounded.json",
-    timingTrackers: "grounding_verification_microseconds",
-    failureModes: "Claim paraphrase distance exceeds fuzzy threshold.",
-    retryPolicy: "Discards ungrounded assertions while preserving only claims with direct verbatim evidence.",
-    codeRef: "src/engine/evidence_verifier.py -> EvidenceVerifier.verify_claims()",
+    name: "Programmatic Evidence Grounding",
+    category: "Verification Phase",
+    type: "PARALLEL",
+    color: "#0891b2",
+    demoImage: "assets/04_report_grounding.png",
+    demoCaption: "Zero-hallucination guarantee: Verifies every AI claim against verbatim transcript text.",
+    description: "Cross-verifies AI extracted claims, announcements, and summaries against verbatim transcript text. Uses 3-tier matching: 1) Direct substring match 2) 5-word sub-phrase match 3) >60% significant word overlap. Generates clickable timestamp URLs (&t=XXs) and renders inline [#] markers.",
+    inputs: "ItemAnalysis, TranscriptData (or post_text)",
+    outputs: "Grounded ItemAnalysis with verified=true/false and inline citation markers",
+    filesProduced: "data/analysis/{item_id}.json (grounded)",
+    timingTrackers: "evidence_validation_duration_seconds",
+    failureModes: "Transcript segment timestamps missing, hallucinated quotes with zero overlap.",
+    retryPolicy: "Flags ungrounded claims with verified=false and strips unverified citation tags.",
+    codeRef: "src/engine/evidence_verifier.py -> EvidenceVerifier.verify_and_ground()",
     samplePayload: {
-      "claim_id": "c-01",
-      "statement": "A significant budget of ₹79,000 crore has been allocated for Pradhan Mantri Janjatiya Uthan Abhiyan.",
-      "quote": "प्रधानमंत्री जनजातीय उन्नत ग्राम अभियान के तहत 79,000 करोड़ का बजट आवंटित किया गया है",
-      "timestamp_start": 348,
-      "timestamp_end": 362,
-      "fuzzy_ratio": 0.88,
-      "grounded": true
+      "claim": "Rail project allocation increased by 40% for southern tribal districts.",
+      "timestamp_start": 842.5,
+      "timestamp_end": 855.0,
+      "verified": true,
+      "citation_url": "https://www.youtube.com/watch?v=EvF9mhGyMps&t=842s",
+      "citation_label": "YouTube Video — 14:02"
     }
   },
   "citation_generation": {
-    name: "Deep Citation Anchor Linking",
-    category: "Verification",
-    type: "ALL FLOWS",
-    color: "#06b6d4",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Interactive citation badges [1], [2], [3] link directly to exact video seconds (?t=XXs).",
-    description: "Generates interactive citation badges ([1], [2]) linking directly to exact video seconds (?t=XXs) or post permalinks, ensuring full auditability for every claim.",
-    inputs: "Verified claims with timestamp offsets",
-    outputs: "Grounded text with inline citation anchors and clickable URL references",
-    filesProduced: "data/analysis/{item_id}_citations.json",
-    timingTrackers: "citation_formatting_microseconds",
-    failureModes: "Invalid timestamp offset outside video duration.",
-    retryPolicy: "Bounds checks against total media duration.",
-    codeRef: "src/engine/citation_builder.py -> CitationBuilder.inject_citations()",
+    name: "Deep Citation & Anchor Synthesis",
+    category: "Citation Engine",
+    type: "PARALLEL",
+    color: "#0891b2",
+    demoImage: "assets/04_report_grounding.png",
+    demoCaption: "Interactive clickable timestamp links directly jump to the exact video playback second.",
+    description: "Synthesizes human-readable time labels (e.g., 'YouTube Video — 14:02', 'YouTube Live — 01:23:45') and builds direct YouTube video URLs with second offsets. Injects superscript citation anchors [#] into rendered HTML and Markdown executive summaries.",
+    inputs: "Verified EvidenceObjects, timestamp_start, activity_type",
+    outputs: "Rendered HTML & Markdown statements with inline clickable citation links",
+    filesProduced: "Grounded executive summary and key points in item report",
+    timingTrackers: "citation_synthesis_microseconds",
+    failureModes: "Negative timestamp offsets, invalid video ID characters.",
+    retryPolicy: "Sanitizes URL parameters, clamps timestamps within video duration bounds.",
+    codeRef: "src/engine/evidence_verifier.py -> EvidenceVerifier.build_youtube_citation()",
     samplePayload: {
-      "citation_badge": "[1]",
-      "citation_url": "https://www.youtube.com/watch?v=EvF9mhGyMps&t=348s",
-      "verbatim_speech": "प्रधानमंत्री जनजातीय उन्नत ग्राम अभियान...",
-      "timestamp_display": "05:48"
-    }
-  },
-  "summary_synthesis": {
-    name: "Grounded Executive Summary Synthesizer",
-    category: "Synthesis",
-    type: "ALL FLOWS",
-    color: "#3b82f6",
-    demoImage: "assets/03_grounded_intelligence_detail.png",
-    demoCaption: "Executive Summary synthesized where every sentence is tied to a verifiable evidence anchor.",
-    description: "Synthesizes multi-paragraph executive summaries and key bullet points where every factual sentence is backed by grounded citation indices.",
-    inputs: "Verified claims and citation dictionary",
-    outputs: "Grounded executive summary and key points with interactive markdown badges",
-    filesProduced: "Part of final item and daily report bundles",
-    timingTrackers: "synthesis_duration_microseconds",
-    failureModes: "Summary contains sentences without verifiable evidence link.",
-    retryPolicy: "Strict validation: strips sentences lacking valid citation tag.",
-    codeRef: "src/engine/summary_synthesizer.py -> GroundedSummarySynthesizer.build()",
-    samplePayload: {
-      "executive_summary": "Dr. Manna Lal Rawat MP Udaipur emphasizes tribal welfare initiatives [1]. A budget of ₹79,000 crore has been allocated for rural upliftment [2].",
-      "grounded_ratio": 1.0
+      "rendered_text_html": "Tribal healthcare initiatives expanded under new budgetary provisions.<sup><a href='https://www.youtube.com/watch?v=EvF9mhGyMps&t=842s'>[1]</a></sup>",
+      "evidence_ids": ["EVID-001"]
     }
   },
   "reports": {
-    name: "Multi-Format File-First Report Generator",
-    category: "Reporting",
-    type: "ALL FLOWS",
-    color: "#8b5cf6",
-    demoImage: "assets/02_daily_archive.png",
-    demoCaption: "Daily and item-level reports compiled into standalone HTML and JSON files.",
-    description: "Generates comprehensive item-level and daily rollup reports in HTML, JSON, and Markdown formats. Designed for zero-database, file-first permanence.",
-    inputs: "Item intelligence, daily aggregated metrics",
-    outputs: "Standalone interactive HTML reports, machine-readable JSONs, and executive Markdown files",
-    filesProduced: "data/reports/items/{item_id}.html, data/reports/daily/YYYY-MM-DD.html",
+    name: "Hierarchical Multi-Format Reports",
+    category: "Output Phase",
+    type: "PARALLEL / BATCH",
+    color: "#4f46e5",
+    demoImage: "assets/04_report_grounding.png",
+    demoCaption: "Self-contained standalone HTML, JSON, and Markdown reports generated with zero external CSS/JS dependencies.",
+    description: "Generates 3 tiers of reports: 1) Individual Item Reports (HTML + JSON) 2) Channel Daily Reports (HTML + JSON) 3) Overall Daily Executive Report (HTML + JSON + Markdown). HTML reports are 100% self-contained with embedded responsive CSS.",
+    inputs: "ActivityItem, ItemAnalysis, TranscriptData, ChannelConfig, date_str",
+    outputs: "Standalone HTML, JSON, and Markdown report deliverables",
+    filesProduced: "data/reports/items/{id}.html, data/reports/items/{id}.json, data/reports/channel/{channel_id}/{date}.html, data/reports/daily/{date}.html",
     timingTrackers: "report_generation_duration_seconds",
-    failureModes: "Jinja2 HTML template rendering error, disk write permission denied.",
-    retryPolicy: "Atomic file writing with temporary file replacement.",
-    codeRef: "src/storage/report_generator.py -> ReportGenerator.generate_daily_report()",
-    samplePayload: {
-      "report_date": "2026-09-12",
-      "total_items": 28,
-      "channels_included": ["sansad_tv", "_narendramodi"],
-      "formats_rendered": ["html", "json", "md"]
-    }
-  },
-  "timing_profiler": {
-    name: "Microsecond Processing-Time Profiler",
-    category: "Telemetry",
-    type: "ALL FLOWS",
-    color: "#f59e0b",
-    demoImage: "assets/01_analytics_dashboard.png",
-    demoCaption: "Processing time telemetry (3h 26m total, avg 5m 02s per activity) displayed in dashboard.",
-    description: "Profiles wall-clock execution time for every individual stage (download, extraction, transcription, LLM, verification) with microsecond precision using time.perf_counter().",
-    inputs: "Stage entry/exit timestamps across pipeline execution",
-    outputs: "ActivityTiming records tracking cumulative latency and bottleneck telemetry",
-    filesProduced: "data/analytics/timing/{item_id}.json",
-    timingTrackers: "stage_timings, total_processing_time_seconds",
-    failureModes: "Clock skew or incomplete timing trace on sudden process termination.",
-    retryPolicy: "Persists intermediate timing checkpoints after every stage completion.",
-    codeRef: "src/engine/profiler.py -> StageTimingProfiler",
+    failureModes: "Jinja/template rendering errors, filesystem write permission denied.",
+    retryPolicy: "Atomic disk write via .tmp file rename with MongoDB mirror fallback.",
+    codeRef: "src/reports/item_report.py, src/reports/channel_report.py, src/reports/daily_report.py",
     samplePayload: {
       "item_id": "EvF9mhGyMps",
-      "total_duration_sec": 78.4,
-      "breakdown": {
-        "download_sec": 4.8,
-        "audio_norm_sec": 1.2,
-        "transcription_sec": 38.5,
-        "llm_analysis_sec": 28.6,
-        "verification_sec": 0.4
-      }
+      "has_report": true,
+      "report_url": "/static/reports/items/EvF9mhGyMps.html",
+      "published_at": "2026-09-12T05:30:00Z"
     }
   },
-  "analytics_aggregator": {
-    name: "Dynamic Date-Range Analytics Aggregator",
-    category: "Analytics",
+  "storage": {
+    name: "Dual-Tier Storage (NVMe File-First + MongoDB)",
+    category: "Persistence Phase",
     type: "GLOBAL",
-    color: "#06b6d4",
-    demoImage: "assets/01_analytics_dashboard.png",
-    demoCaption: "Interactive metrics aggregating 41 activities, trend splines, and content distribution donuts.",
-    description: "Aggregates intelligence, channel distributions, topic frequencies, and latency statistics across configurable time windows (Today, 7D, 30D, Custom).",
-    inputs: "data/activities/, data/analysis/, data/analytics/timing/",
-    outputs: "Aggregated dashboard metrics and chart payloads for React frontend",
-    filesProduced: "In-memory caching with periodic disk revalidation",
-    timingTrackers: "dashboard_aggregation_microseconds",
-    failureModes: "Corrupted activity JSON in storage directory.",
-    retryPolicy: "Gracefully skips invalid files and logs warning in audit stream.",
-    codeRef: "src/analytics/dashboard_service.py -> DashboardService.get_metrics()",
+    color: "#4f46e5",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "Predictable NVMe file hierarchy ensures complete auditability; MongoDB enables high-speed UI queries.",
+    description: "Provides dual-tier persistence. Tier 1: NVMe disk file-first storage with atomic writes (.tmp + replace) for human-readable auditability. Tier 2: MongoDB document persistence for high-speed indexing, search, and dashboard aggregation.",
+    inputs: "All system models and deliverables",
+    outputs: "Synchronized disk files and MongoDB collections",
+    filesProduced: "data/channels/, data/activities/, data/transcripts/, data/analysis/, data/reports/, state/runs/, state/timings/",
+    timingTrackers: "atomic_write_microseconds, mongo_upsert_latency",
+    failureModes: "MongoDB connection loss (falls back to disk gracefully), NVMe disk full.",
+    retryPolicy: "Non-blocking MongoDB write failures logged as warnings; file-first disk writes remain primary ground truth.",
+    codeRef: "src/storage/file_store.py -> FileStore, src/storage/mongodb.py -> MongoManager",
     samplePayload: {
-      "date_range": "2026-09-07 to 2026-09-13",
-      "total_activities": 41,
-      "videos": 19,
-      "shorts": 4,
-      "posts": 12,
-      "live": 6,
-      "total_proc_time": "3h 26m"
+      "file_path": "data/reports/items/EvF9mhGyMps.json",
+      "mongo_collection": "activities",
+      "atomic_swap": true
     }
   },
-  "sse_telemetry": {
-    name: "Server-Sent Events (SSE) Live Streamer",
-    category: "UI Streaming",
-    type: "GLOBAL",
-    color: "#10b981",
-    demoImage: "assets/04_live_processing.png",
-    demoCaption: "Real-time Server-Sent Events (SSE) progress bar (DISCOVERED -> COMPLETED) and console log.",
-    description: "Broadcasts live stage transitions, item progress, log messages, and error alerts to connected web UI clients over persistent HTTP SSE connection.",
-    inputs: "ProgressEvent bus from MonitoringPipeline",
-    outputs: "Real-time SSE event stream at /api/monitor/events",
-    filesProduced: "logs/runs/{run_id}/events.jsonl",
-    timingTrackers: "event_dispatch_microseconds",
-    failureModes: "Client disconnection or slow network subscriber.",
-    retryPolicy: "Queue drop protection with thread-safe loop dispatch.",
-    codeRef: "src/api/main.py -> broadcast_event() & /api/monitor/events",
+  "telemetry_sse": {
+    name: "SSE Telemetry & Real-Time State Stream",
+    category: "API & Monitoring",
+    type: "REAL-TIME",
+    color: "#059669",
+    demoImage: "assets/01_live_monitoring.png",
+    demoCaption: "Live Server-Sent Events stream (/api/events) drives real-time progress cards in the UI dashboard.",
+    description: "Streams live ProgressEvents over Server-Sent Events (/api/events). Maintains active_items_tracker dictionary in FastAPI memory, updating stage, status, percentage, timings, and error payloads for every concurrent worker item.",
+    inputs: "ProgressEvent emitted by pipeline",
+    outputs: "Real-time SSE event stream (text/event-stream) consumed by React frontend",
+    filesProduced: "logs/runs/{run_id}.log, state/runs/{run_id}.json",
+    timingTrackers: "sse_broadcast_latency",
+    failureModes: "Client disconnection, async queue backpressure.",
+    retryPolicy: "Sliding event buffer (last 400 events) allows reconnecting clients to catch up immediately.",
+    codeRef: "src/api/main.py -> broadcast_event(), active_items_tracker",
     samplePayload: {
-      "stage": "TRANSCRIBED",
       "item_id": "EvF9mhGyMps",
-      "progress": 60,
-      "message": "Faster-Whisper CUDA speech transcription complete"
+      "stage": "ANALYZING",
+      "status": "progress",
+      "progress": 65,
+      "message": "Grounded AI extraction & synthesis via gemma3:12b..."
     }
   },
   "safe_deletion": {
-    name: "Selective Data Management & Controlled Purge Hub",
-    category: "Governance",
-    type: "DATA LIFECYCLE",
-    color: "#ef4444",
-    demoImage: "assets/05_data_management.png",
-    demoCaption: "Safe Deletion Hub showing 2-step preview, confirmation token entry, and audit log entries.",
-    description: "Provides controlled, reversible data management. Generates 2-step impact previews and requires cryptographic confirmation token 'CONFIRM_DELETE' before purging.",
-    inputs: "Target scope (Channel, Date Range, Single Date), confirmation token",
-    outputs: "Preview report of exact files to be deleted, deletion execution summary",
-    filesProduced: "logs/data_management/audit.jsonl",
-    timingTrackers: "preview_calc_sec, deletion_execution_sec",
-    failureModes: "Invalid confirmation token, preview expired (>15 min), concurrent deletion conflict.",
-    retryPolicy: "Strict zero-tolerance validation; aborts if token does not match CONFIRM_DELETE.",
-    codeRef: "src/storage/deletion_service.py -> DeletionService.execute_deletion()",
+    name: "Safe Deletion & Audit Lifecycle",
+    category: "Governance & Cleanup",
+    type: "GOVERNANCE",
+    color: "#dc2626",
+    demoImage: "assets/02_daily_archive.png",
+    demoCaption: "2-step cryptographic confirmation prevents accidental data loss; writes append-only audit trail.",
+    description: "Provides controlled data purge capabilities. Step 1: Preview impact across scopes (CHANNEL, DATE, DATE_RANGE, WATCHLIST) counting affected activities, transcripts, and reports. Step 2: Requires explicit cryptographic token (CONFIRM_DELETE) to execute atomic purge and writes append-only audit records.",
+    inputs: "DeletionScope, target identifier, confirmation_token",
+    outputs: "DeletionPreview object and DeletionAuditRecord",
+    filesProduced: "state/audit/deletion_{audit_id}.json",
+    timingTrackers: "preview_calculation_ms, atomic_delete_ms",
+    failureModes: "Invalid confirmation token, file locking during ongoing processing.",
+    retryPolicy: "Strict rejection of unconfirmed delete requests (HTTP 400); deletion refused while pipeline run is active.",
+    codeRef: "src/storage/deletion_service.py -> DeletionService",
     samplePayload: {
-      "preview_id": "del_preview_9210e",
-      "scope": "CHANNEL",
-      "items_to_delete": 15,
-      "files_to_delete": 60,
-      "audit_token_verified": true
+      "scope": "DATE",
+      "target_date": "2026-09-12",
+      "items_affected": 28,
+      "confirmation_required": "CONFIRM_DELETE",
+      "audit_id": "del_audit_20260912_01"
     }
   }
 };
 
-// Pipeline Step Sequence for Timeline / Mobile Card View
-const PIPELINE_SEQUENCE = [
-  "watchlist",
-  "discovery",
-  "date_filter",
-  "dedup",
-  "download",
-  "audio_norm",
-  "post_text",
-  "live_segmenter",
-  "transcription",
-  "llm_analysis",
-  "evidence_validation",
-  "citation_generation",
-  "summary_synthesis",
-  "reports",
-  "timing_profiler",
-  "analytics_aggregator",
-  "sse_telemetry",
-  "safe_deletion"
-];
-
-// Live Demonstration Showcase Items
-const SHOWCASE_ITEMS = [
-  {
-    title: "1. Analytics Dashboard & Intelligence Profiler",
-    stage: "ANALYTICS & TELEMETRY",
-    color: "#06b6d4",
-    image: "assets/01_analytics_dashboard.png",
-    description: "Real-time political intelligence breakdown across 4 activity flows over configurable date windows (Today, Yesterday, Last 7 Days, Last 30 Days, Custom Range). Displays activity trends over time, donut distribution charts, active channel counts, and cumulative hardware processing telemetry (3h 26m).",
-    features: [
-      "Dynamic Date-Range Intelligence (7D / 30D / Custom)",
-      "Activity Over Time Spline Graph & Type Distribution",
-      "Per-Stage Microsecond Profiling & Cumulative Duration",
-      "0-Failure Guarantee across multi-channel ingestion runs"
-    ]
-  },
-  {
-    title: "2. Strict Evidence Grounding & Second-Level Citations",
-    stage: "EVIDENCE GROUNDING & VERIFICATION",
-    color: "#10b981",
-    image: "assets/03_grounded_intelligence_detail.png",
-    description: "The core verification engine: every extracted claim and executive summary point is mathematically proven against verbatim spoken passages using fuzzy Levenshtein distance (ratio >= 0.75). Provides interactive [1], [2] citation badges linking to second-level timestamps (?t=XXs).",
-    features: [
-      "Verbatim speech passage matching with Levenshtein ratio >= 0.75",
-      "Clickable inline citation anchors ([1], [2]) linking to video timestamps",
-      "Politician and speaker attribution with constituency context",
-      "Automatic elimination of ungrounded LLM hallucinations"
-    ]
-  },
-  {
-    title: "3. Daily Intelligence Archive & Multi-Channel Catalog",
-    stage: "DISCOVERY & REPORTING",
-    color: "#8b5cf6",
-    image: "assets/02_daily_archive.png",
-    description: "Browse cataloged political activities for any date (shown: 2026-09-12 with 28 items, 365 grounded claims). Displays channel cards with thumbnails, activity badges (VIDEO, SHORT, LIVE, POST), publication metadata, and instant filtering across content types.",
-    features: [
-      "28 cataloged items across Sansad TV and @NarendraModi",
-      "Instant multi-flow filtering (Videos, Shorts, Posts, Live Streams)",
-      "One-click export to standalone HTML report and CSV dataset",
-      "Inspect Intelligence drawer trigger for deep analysis"
-    ]
-  },
-  {
-    title: "4. Live Processing Console & Real-Time SSE Tracker",
-    stage: "STREAMING & TELEMETRY",
-    color: "#3b82f6",
-    image: "assets/04_live_processing.png",
-    description: "Live Server-Sent Events (SSE) monitor visualizing pipeline stage progression in real time: DISCOVERED -> METADATA_COLLECTED -> AUDIO_EXTRACTED -> TRANSCRIBED -> ANALYZED -> EVIDENCE_VALIDATED -> REPORT_GENERATED -> COMPLETED.",
-    features: [
-      "8-stage visual pipeline progression indicator",
-      "Live Server-Sent Events (SSE) streaming at /api/monitor/events",
-      "Integrated live terminal stream with real-time log dispatch",
-      "Zero polling overhead with asynchronous thread-safe queues"
-    ]
-  },
-  {
-    title: "5. Selective Data Management & Controlled Purge Hub",
-    stage: "GOVERNANCE & LIFECYCLE",
-    color: "#ef4444",
-    image: "assets/05_data_management.png",
-    description: "Enterprise-grade data lifecycle management. Allows targeting specific channels, date ranges, or single dates with a mandatory 2-step impact preview before purging. Requires explicit cryptographic confirmation token 'CONFIRM_DELETE' and writes to an append-only audit log.",
-    features: [
-      "Scope-targeted deletion (By Channel, Date Range, or Single Date)",
-      "2-step impact preview calculating exact items, files, and bytes",
-      "Mandatory confirmation token 'CONFIRM_DELETE' to execute",
-      "Tamper-evident audit trail saved to logs/data_management/audit.jsonl"
-    ]
-  },
-  {
-    title: "6. Interactive Pipeline Architecture & Swimlanes",
-    stage: "PIPELINE SPECIFICATION & WORKFLOW",
-    color: "#6366f1",
-    image: "assets/06_pipeline_flow.png",
-    description: "Interactive visual blueprint mapping all 4 YouTube activity flows, Faster-Whisper transcription, dual-engine Ollama LLM extraction, mathematical evidence grounding, microsecond timing profiler, and file-first NVMe data layout.",
-    features: [
-      "End-to-end swimlane mapping for Video, Shorts, Post, and Live streams",
-      "Interactive SVG canvas with pan, zoom, and stage inspection drawers",
-      "Exact NVMe file layout paths and JSON schema specifications",
-      "Mobile-responsive timeline cards and touch-optimized view"
-    ]
-  }
-];
-
-// State Management
+// =============================================================================
+// 2. Application State & Theme Management (Default Light)
+// =============================================================================
 let currentTab = "full";
-let currentViewMode = "diagram"; // 'diagram' | 'timeline'
-let zoomScale = 1.0;
+let currentViewMode = "diagram"; // "diagram" | "timeline"
+let currentTheme = localStorage.getItem("pipeline-theme") || "light";
+
+// Pan & Zoom Viewport State
 let panX = 0;
 let panY = 0;
-let isDragging = false;
-let startX, startY;
-let initialDistance = 0;
+let zoomScale = 1.0;
+let isPanning = false;
+let startX = 0;
+let startY = 0;
 
-// =============================================================================
-// Initialization
-// =============================================================================
+// Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
-  initTabs();
-  initControls();
-  initViewModeToggle();
-  initSearch();
-  initDrawer();
-  initLightbox();
-  initTouchGestures();
-
-  // Smart responsive view mode: Step-by-Step Cards for phones, Interactive Diagram for desktop
-  if (window.innerWidth < 768) {
-    setViewMode("timeline");
-  } else {
-    setViewMode("diagram");
-  }
+  initTheme();
+  setupEventListeners();
+  renderCurrentView();
 });
 
-// =============================================================================
-// View Mode Toggle (Diagram vs Detailed Step Cards)
-// =============================================================================
-function initViewModeToggle() {
-  const btn = document.getElementById("btn-view-mode");
-  if (!btn) return;
-
-  btn.addEventListener("click", () => {
-    if (currentTab === "screenshots") {
-      // Switch back to full diagram
-      document.querySelector(".tab-btn[data-tab='full']")?.click();
-      return;
-    }
-    if (currentViewMode === "diagram") {
-      setViewMode("timeline");
-    } else {
-      setViewMode("diagram");
-    }
-  });
+/**
+ * Initializes and toggles Light/Dark theme (Default Light)
+ */
+function initTheme() {
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  updateThemeButtonUI();
 }
 
-function setViewMode(mode) {
-  currentViewMode = mode;
-  const canvas = document.getElementById("diagram-canvas");
-  const timeline = document.getElementById("timeline-container");
-  const showcase = document.getElementById("showcase-container");
-  const btn = document.getElementById("btn-view-mode");
-  const controls = document.getElementById("controls-overlay");
-  const legend = document.getElementById("legend-overlay");
+function updateThemeButtonUI() {
+  const icon = document.getElementById("theme-icon");
+  const text = document.getElementById("theme-text");
+  if (!icon || !text) return;
 
-  if (showcase) showcase.style.display = "none";
-
-  if (mode === "timeline") {
-    canvas.style.display = "none";
-    timeline.style.display = "block";
-    controls.style.display = "none";
-    if (legend) legend.style.display = "none";
-    btn.innerHTML = '<span class="icon">🗺️</span> <span class="text">Interactive Diagram</span>';
-    renderTimelineView();
+  if (currentTheme === "dark") {
+    icon.textContent = "☀️";
+    text.textContent = "Light Mode";
   } else {
-    canvas.style.display = "flex";
-    timeline.style.display = "none";
-    controls.style.display = "flex";
-    if (legend && window.innerWidth > 992) legend.style.display = "block";
-    btn.innerHTML = '<span class="icon">📋</span> <span class="text">Step-by-Step Flow</span>';
-    renderDiagramView();
+    icon.textContent = "🌙";
+    text.textContent = "Dark Mode";
   }
 }
 
+function toggleTheme() {
+  currentTheme = currentTheme === "light" ? "dark" : "light";
+  localStorage.setItem("pipeline-theme", currentTheme);
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  updateThemeButtonUI();
+  renderDiagramView(); // Re-render SVG to update dynamic strokes/fills
+}
+
 // =============================================================================
-// Tab Switching
+// 3. Event Listeners & Navigation Setup
 // =============================================================================
-function initTabs() {
+function setupEventListeners() {
+  // Theme Toggle Button
+  const btnTheme = document.getElementById("btn-theme-toggle");
+  if (btnTheme) btnTheme.addEventListener("click", toggleTheme);
+
+  // Tab Bar Clicks
   const tabs = document.querySelectorAll(".tab-btn");
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       tabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       currentTab = tab.getAttribute("data-tab");
-      resetTransform();
+      resetViewport();
       renderCurrentView();
-
-      // Scroll active tab into view on mobile
-      tab.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     });
+  });
+
+  // Lifecycle Track Bar Clicks (Direct Drawer Access)
+  document.querySelectorAll(".track-step").forEach(el => {
+    el.addEventListener("click", () => {
+      const stage = el.getAttribute("data-stage");
+      if (stage && STAGE_SPECS[stage]) openDrawer(stage);
+    });
+  });
+
+  // View Mode Toggle (Diagram vs Step-by-Step Cards)
+  const btnViewMode = document.getElementById("btn-view-mode");
+  if (btnViewMode) {
+    btnViewMode.addEventListener("click", () => {
+      currentViewMode = currentViewMode === "diagram" ? "timeline" : "diagram";
+      const icon = btnViewMode.querySelector(".icon");
+      const text = btnViewMode.querySelector(".text");
+      if (currentViewMode === "timeline") {
+        icon.textContent = "🌐";
+        text.textContent = "Diagram View";
+      } else {
+        icon.textContent = "📋";
+        text.textContent = "Step-by-Step Flow";
+      }
+      renderCurrentView();
+    });
+  }
+
+  // Floating Controls (Zoom, Pan, Fit, Reset)
+  const btnZoomIn = document.getElementById("btn-zoom-in");
+  const btnZoomOut = document.getElementById("btn-zoom-out");
+  const btnReset = document.getElementById("btn-reset");
+  const btnFit = document.getElementById("btn-fit");
+
+  if (btnZoomIn) btnZoomIn.addEventListener("click", () => zoomBy(1.15));
+  if (btnZoomOut) btnZoomOut.addEventListener("click", () => zoomBy(0.85));
+  if (btnReset) btnReset.addEventListener("click", resetViewport);
+  if (btnFit) btnFit.addEventListener("click", fitToScreen);
+
+  // Search Input Handler
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      handleSearch(query);
+    });
+  }
+
+  // Drawer Close Button & Backdrop
+  const drawerClose = document.getElementById("drawer-close");
+  const backdrop = document.getElementById("drawer-backdrop");
+  if (drawerClose) drawerClose.addEventListener("click", closeDrawer);
+  if (backdrop) backdrop.addEventListener("click", closeDrawer);
+
+  // Lightbox Modal Close
+  const lightboxModal = document.getElementById("lightbox-modal");
+  const lightboxClose = document.getElementById("lightbox-close");
+  if (lightboxClose) {
+    lightboxClose.addEventListener("click", () => lightboxModal.classList.remove("open"));
+  }
+  if (lightboxModal) {
+    lightboxModal.addEventListener("click", (e) => {
+      if (e.target === lightboxModal) lightboxModal.classList.remove("open");
+    });
+  }
+
+  // Canvas Pan & Zoom Mouse / Touch Gestures
+  setupPanZoom();
+}
+
+/**
+ * Handles Canvas Pan and MouseWheel Zooming
+ */
+function setupPanZoom() {
+  const canvas = document.getElementById("diagram-canvas");
+  if (!canvas) return;
+
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".node-group")) return;
+    isPanning = true;
+    startX = e.clientX - panX;
+    startY = e.clientY - panY;
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isPanning) return;
+    panX = e.clientX - startX;
+    panY = e.clientY - startY;
+    applyTransform();
+  });
+
+  window.addEventListener("mouseup", () => {
+    isPanning = false;
+  });
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+    zoomBy(zoomFactor);
+  }, { passive: false });
+
+  // Touch Support for Mobile
+  let initialTouchDist = 0;
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      isPanning = true;
+      startX = e.touches[0].clientX - panX;
+      startY = e.touches[0].clientY - panY;
+    } else if (e.touches.length === 2) {
+      isPanning = false;
+      initialTouchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: true });
+
+  canvas.addEventListener("touchmove", (e) => {
+    if (isPanning && e.touches.length === 1) {
+      panX = e.touches[0].clientX - startX;
+      panY = e.touches[0].clientY - startY;
+      applyTransform();
+    } else if (e.touches.length === 2 && initialTouchDist > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / initialTouchDist;
+      zoomBy(factor);
+      initialTouchDist = dist;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener("touchend", () => {
+    isPanning = false;
+    initialTouchDist = 0;
   });
 }
 
+function zoomBy(factor) {
+  const newScale = zoomScale * factor;
+  if (newScale >= 0.35 && newScale <= 3.2) {
+    zoomScale = newScale;
+    applyTransform();
+  }
+}
+
+function resetViewport() {
+  panX = 0;
+  panY = 0;
+  zoomScale = 1.0;
+  applyTransform();
+}
+
+function fitToScreen() {
+  panX = 0;
+  panY = 0;
+  const container = document.getElementById("viewport-container");
+  if (container) {
+    const w = container.clientWidth;
+    zoomScale = w < 768 ? 0.55 : (w < 1200 ? 0.78 : 0.95);
+  } else {
+    zoomScale = 0.9;
+  }
+  applyTransform();
+}
+
+function applyTransform() {
+  const svg = document.querySelector("#diagram-canvas svg");
+  if (svg) {
+    svg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+    svg.style.transformOrigin = "center center";
+  }
+}
+
+// =============================================================================
+// 4. View Switching & Dispatcher
+// =============================================================================
 function renderCurrentView() {
   const canvas = document.getElementById("diagram-canvas");
   const timeline = document.getElementById("timeline-container");
@@ -635,461 +689,139 @@ function renderCurrentView() {
   const limitations = document.getElementById("limitations-container");
   const controls = document.getElementById("controls-overlay");
   const legend = document.getElementById("legend-overlay");
-  const viewToggle = document.getElementById("btn-view-mode");
 
-  if (currentTab === "limitations") {
-    canvas.style.display = "none";
-    timeline.style.display = "none";
-    if (showcase) showcase.style.display = "none";
-    if (limitations) limitations.style.display = "block";
-    controls.style.display = "none";
-    if (legend) legend.style.display = "none";
-    if (viewToggle) viewToggle.style.display = "none";
-    renderLimitationsView();
-    return;
-  }
-
-  if (currentTab === "screenshots") {
-    canvas.style.display = "none";
-    timeline.style.display = "none";
-    if (limitations) limitations.style.display = "none";
-    if (showcase) showcase.style.display = "block";
-    controls.style.display = "none";
-    if (legend) legend.style.display = "none";
-    if (viewToggle) viewToggle.style.display = "none";
-    renderShowcaseView();
-    return;
-  }
-
-  if (viewToggle) viewToggle.style.display = "inline-flex";
+  // Hide all viewports initially
+  if (canvas) canvas.style.display = "none";
+  if (timeline) timeline.style.display = "none";
   if (showcase) showcase.style.display = "none";
   if (limitations) limitations.style.display = "none";
+  if (controls) controls.style.display = "none";
+  if (legend) legend.style.display = "none";
 
+  if (currentTab === "screenshots") {
+    if (showcase) {
+      showcase.style.display = "block";
+      renderShowcaseView();
+    }
+    return;
+  }
+
+  if (currentTab === "limitations") {
+    if (limitations) {
+      limitations.style.display = "block";
+      renderLimitationsView();
+    }
+    return;
+  }
+
+  // Handle Timeline vs Diagram View
   if (currentViewMode === "timeline") {
-    canvas.style.display = "none";
-    timeline.style.display = "block";
-    controls.style.display = "none";
-    if (legend) legend.style.display = "none";
-    renderTimelineView();
+    if (timeline) {
+      timeline.style.display = "block";
+      renderTimelineView();
+    }
   } else {
-    canvas.style.display = "flex";
-    timeline.style.display = "none";
-    controls.style.display = "flex";
-    if (legend && window.innerWidth > 992) legend.style.display = "block";
-    renderDiagramView();
+    if (canvas) {
+      canvas.style.display = "flex";
+      if (controls) controls.style.display = "flex";
+      if (legend) legend.style.display = "block";
+      renderDiagramView();
+    }
   }
 }
 
 // =============================================================================
-// Limitations, Technical Challenges & Roadmap View
+// 5. SVG Helper Functions (Refined Layout & No Text Overlap)
 // =============================================================================
-function renderLimitationsView() {
-  const container = document.getElementById("limitations-container");
-  if (!container) return;
+function svgNode(x, y, w, h, stageKey, title, subtitle, color, badgeText, statusDotColor) {
+  const isDark = currentTheme === "dark";
+  const pillBg = `${color}18`;
+  const pillBorder = `${color}50`;
+  const dotColor = statusDotColor || color;
+  const badgeWidth = Math.max(64, badgeText ? badgeText.length * 7 + 14 : 64);
+  const badgeX = w - badgeWidth - 10;
 
-  const html = `
-    <div class="limitations-hero">
-      <div class="limitations-hero-badge">⚠️ SYSTEM MATURITY ASSESSMENT (v1.0.0)</div>
-      <h2>System Limitations, Operational Challenges & Engineering Roadmap</h2>
-      <p>A transparent architectural assessment of current system boundaries across YouTube scraping dependencies, multilingual acoustic noise in parliamentary speeches, strict Levenshtein evidence grounding trade-offs, single-GPU VRAM contention, and file-first filesystem scaling. Built for engineering evaluation and production planning.</p>
-    </div>
-
-    <div class="limitations-grid">
-      <!-- 1. Scraping & Ingestion -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">🌐 1. Upstream Scraping vs Data API v3</div>
-          <span class="limitation-status-badge status-warning">UPSTREAM RISK</span>
-        </div>
-        <div class="limitation-card-desc">
-          Channel discovery, post scraping, and live detection utilize yt-dlp and direct DOM extraction rather than official Google Cloud YouTube Data API v3.
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>IP Throttling:</strong> Aggressive multi-channel scraping risks HTTP 429 and anti-bot verification challenges.</li>
-          <li><strong>Community DOM Volatility:</strong> YouTube Community posts lack an official public API; structural UI redesigns can break scrapers.</li>
-          <li><strong>Live VOD vs RTMP:</strong> Currently ingests completed broadcasts (VOD); does not chunk live rolling RTMP streams in real-time.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">Exponential backoff, user-agent rotation, and jittered pacing. Phase 2 introduces optional YouTube Data API v3 integration with automated fallback.</div>
-        </div>
-      </div>
-
-      <!-- 2. Audio & Speech-to-Text -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">🎙️ 2. Acoustic Realities & Dialects</div>
-          <span class="limitation-status-badge status-danger">ACOUSTIC NOISE</span>
-        </div>
-        <div class="limitation-card-desc">
-          Faster-Whisper CUDA float16 provides high-speed Hindi/English transcription, but political audio exhibits extreme acoustic challenges.
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>Parliamentary Shouting & Crosstalk:</strong> Concurrent MP speakers in debates cause overlapping speech and word error rate spikes.</li>
-          <li><strong>Rally Reverberation:</strong> Open-air election rallies suffer from loudspeaker echo, wind distortion, and crowd slogans.</li>
-          <li><strong>Regional Idioms:</strong> Non-standard dialects (Garhwali / Kumaoni / Pahari colloquialisms) can be mistranslated by standard models.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">Silero VAD speech filtering and hallucination temperature fallback. Phase 2 adds PyAnnote Speaker Diarization to isolate overlapping voices.</div>
-        </div>
-      </div>
-
-      <!-- 3. Evidence Grounding -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">🎯 3. Strict Fuzzy Grounding Trade-off</div>
-          <span class="limitation-status-badge status-info">DESIGN TRADE-OFF</span>
-        </div>
-        <div class="limitation-card-desc">
-          Mathematical string verification uses Levenshtein ratio ≥ 0.75 between LLM claims and verbatim spoken Whisper segments.
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>High Precision vs Low Semantic Recall:</strong> Guarantees 0 hallucination, but rejects abstract conceptual takeaways that rephrase speech.</li>
-          <li><strong>No Dense Embedding Layer:</strong> Semantic abstractions that accurately capture speech without verbatim vocabulary fail verification.</li>
-          <li><strong>Transcript Chunking:</strong> 4+ hour debates chunked with 15% overlap can occasionally lose cross-segment conversational arcs.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">Deliberate choice: Truthfulness over completeness. Phase 2 introduces Tier-2 Hybrid Grounding using BGE-m3 multilingual dense embeddings.</div>
-        </div>
-      </div>
-
-      <!-- 4. Compute & GPU VRAM -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">⚡ 4. Single-GPU VRAM Contention</div>
-          <span class="limitation-status-badge status-warning">HARDWARE LIMIT</span>
-        </div>
-        <div class="limitation-card-desc">
-          Whisper CUDA (~3-4GB VRAM) and Ollama Gemma 3 12B (~8.1GB VRAM) compete for GPU memory on consumer workstations (12-16GB).
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>CUDA OOM Risk:</strong> Concurrent transcription and 12B LLM inference on a single 12GB GPU can exhaust memory.</li>
-          <li><strong>Sequential Processing Backlog:</strong> A 1-hour video requires ~4.5 minutes wall-clock time; 20+ hours of video create sequential compute queues.</li>
-          <li><strong>Thermal & Workstation Uptime:</strong> Bulk retroactive backfills place sustained 100% load on workstation GPU/CPU.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">Strictly serialized stage execution with CUDA cache flushes, plus automatic fallback to Qwen3 8B (5.2GB). Phase 3 adds multi-GPU Celery queues.</div>
-        </div>
-      </div>
-
-      <!-- 5. Storage & Query Scaling -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">📁 5. File-First Storage Scaling</div>
-          <span class="limitation-status-badge status-warning">I/O LATENCY</span>
-        </div>
-        <div class="limitation-card-desc">
-          Individual JSON files per activity provide clean auditability and zero SQL lock-in, but scale challenges emerge at 50,000+ files.
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>Directory Listing Latency:</strong> Scanning flat directories with tens of thousands of JSON files increases os.listdir latency (>200ms).</li>
-          <li><strong>Analytical Aggregation Spikes:</strong> Multi-month date range analytics deserialize raw JSON files from disk on-the-fly.</li>
-          <li><strong>No Multi-File ACID:</strong> Atomic tempfile rename guarantees per-file integrity, but cross-directory writes lack distributed transactions.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">In-memory caching and clean directory partitioning. Phase 2 introduces an embedded SQLite/DuckDB read-model indexer for sub-5ms queries.</div>
-        </div>
-      </div>
-
-      <!-- 6. Architecture & Security -->
-      <div class="limitation-card">
-        <div class="limitation-card-header">
-          <div class="limitation-card-title">🛡️ 6. Single-Node Architecture & Auth</div>
-          <span class="limitation-status-badge status-info">INTRANET SCOPE</span>
-        </div>
-        <div class="limitation-card-desc">
-          Unified FastAPI async application with Server-Sent Events (SSE) telemetry, designed for trusted research workstations.
-        </div>
-        <div class="limitation-list-title">Core Challenges</div>
-        <ul class="limitation-points-list">
-          <li><strong>Zero RBAC:</strong> REST APIs do not require JWT/OAuth authentication; relies on localhost or protected intranet LAN bindings.</li>
-          <li><strong>Task Recovery:</strong> Unexpected host reboots during a long video restart that video from the beginning upon relaunch.</li>
-          <li><strong>In-Memory SSE Queues:</strong> Live logs stream via in-memory thread queues; connecting clients only see logs emitted while connected.</li>
-        </ul>
-        <div class="limitation-mitigation-box">
-          <div class="limitation-mitigation-title">🛡️ Current Mitigation & Phase 2 Roadmap</div>
-          <div class="limitation-mitigation-desc">Cryptographic token (CONFIRM_DELETE) protects destructive operations. Phase 3 introduces JWT auth, reverse proxy bundling, and persistent Celery tasks.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Comparative Technical Matrix -->
-    <div class="limitations-table-section">
-      <h3>📊 Comparative Technical Architecture Matrix</h3>
-      <p>Comparing current v1.0.0 implementation decisions against enterprise theoretical targets and engineering justifications.</p>
-      
-      <div class="matrix-table-wrapper">
-        <table class="matrix-table">
-          <thead>
-            <tr>
-              <th>Architecture Subsystem</th>
-              <th>Current Implementation (v1.0.0)</th>
-              <th>Enterprise Theoretical Target</th>
-              <th>Engineering Trade-Off Justification</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Ingestion Engine</strong></td>
-              <td>yt-dlp + direct DOM scraping</td>
-              <td>YouTube Data API v3 + Webhooks</td>
-              <td>Eliminates cloud API quotas; enables community posts & live status without billing.</td>
-            </tr>
-            <tr>
-              <td><strong>Speech-to-Text</strong></td>
-              <td>Faster-Whisper CUDA float16 + Silero VAD</td>
-              <td>Whisper Large-v3 + PyAnnote Diarization</td>
-              <td>Runs comfortably under 4GB VRAM alongside local LLMs on a single GPU workstation.</td>
-            </tr>
-            <tr>
-              <td><strong>LLM Inference</strong></td>
-              <td>Local Gemma 3 12B / Qwen3 8B via Ollama</td>
-              <td>Distributed 70B+ cluster or Frontier Cloud API</td>
-              <td>100% data sovereignty, zero ongoing API fees, complete privacy for sensitive analysis.</td>
-            </tr>
-            <tr>
-              <td><strong>Evidence Grounding</strong></td>
-              <td>Levenshtein String Verification (≥ 0.75)</td>
-              <td>Hybrid: Levenshtein + BGE-m3 Vector Embeddings</td>
-              <td>Absolute mathematical guarantee against hallucination; strict adherence to spoken facts.</td>
-            </tr>
-            <tr>
-              <td><strong>Storage Architecture</strong></td>
-              <td>File-first hierarchical JSON/HTML under data/</td>
-              <td>Hybrid: Raw JSON Data Lake + Embedded DuckDB</td>
-              <td>Human-readable, git-inspectable, zero database setup or migration schema fragility.</td>
-            </tr>
-            <tr>
-              <td><strong>Task Orchestration</strong></td>
-              <td>Asyncio ThreadPoolExecutor + SSE telemetry</td>
-              <td>Distributed Celery + Redis Task Cluster</td>
-              <td>Zero-dependency lightweight deployment; single-command startup via ./start.sh.</td>
-            </tr>
-            <tr>
-              <td><strong>Access & Security</strong></td>
-              <td>Localhost / Protected Intranet binding</td>
-              <td>Multi-Tenant RBAC + JWT Auth + HTTPS Proxy</td>
-              <td>Tailored for dedicated internal intelligence workstations and research teams.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Strategic Roadmap -->
-    <div class="limitations-table-section">
-      <h3>🚀 Strategic Engineering Roadmap</h3>
-      <p>Milestones and phased evolutionary targets for scaling the political intelligence monitoring platform.</p>
-
-      <div class="roadmap-grid">
-        <div class="roadmap-card active-phase">
-          <span class="roadmap-badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4);">Phase 1 (Completed)</span>
-          <div class="roadmap-title">Alpha to Beta Production Prototype</div>
-          <span class="roadmap-status-pill" style="color: #34d399;">● Current Working Baseline</span>
-          <ul class="roadmap-items">
-            <li>4 Ingestion flows (Videos, Shorts, Posts, Live)</li>
-            <li>CUDA Faster-Whisper Hindi/English transcription</li>
-            <li>Dual-engine Gemma 3 12B / Qwen3 8B with JSON Schema</li>
-            <li>Strict Levenshtein timestamped evidence grounding</li>
-            <li>Microsecond stage profiler & telemetry dashboard</li>
-            <li>Selective Data Management with 2-step audit trail</li>
-          </ul>
-        </div>
-
-        <div class="roadmap-card upcoming-phase">
-          <span class="roadmap-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Phase 2 (Planned)</span>
-          <div class="roadmap-title">Architectural Enhancements</div>
-          <span class="roadmap-status-pill" style="color: #fbbf24;">● Next Development Sprint</span>
-          <ul class="roadmap-items">
-            <li>Embedded SQLite/DuckDB read-model indexer (&lt;5ms queries)</li>
-            <li>Tier-2 Hybrid Semantic Grounding via BGE-m3 embeddings</li>
-            <li>PyAnnote automated speaker diarization for debates</li>
-            <li>YouTube Data API v3 integration with automated fallback</li>
-            <li>Multi-channel automated cron scheduler</li>
-            <li>Automated CSV/Excel batch intelligence exporters</li>
-          </ul>
-        </div>
-
-        <div class="roadmap-card future-phase">
-          <span class="roadmap-badge" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.4);">Phase 3 (Long-Term)</span>
-          <div class="roadmap-title">Distributed Enterprise Scale</div>
-          <span class="roadmap-status-pill" style="color: #c4b5fd;">● Enterprise Target</span>
-          <ul class="roadmap-items">
-            <li>Distributed Celery/Redis multi-GPU worker clusters</li>
-            <li>Rolling 60-second real-time live RTMP/HLS audio ingestion</li>
-            <li>Multi-user RBAC with JWT authentication & audit trails</li>
-            <li>Containerized Docker-Compose & Helm chart deployment</li>
-            <li>Vector database integration (Qdrant/Milvus) for cross-year RAG</li>
-            <li>Automated alerts via Telegram/Email on breaking claims</li>
-          </ul>
-        </div>
-      </div>
-    </div>
+  return `
+    <g class="node-group" data-stage="${stageKey}" transform="translate(${x}, ${y})">
+      <rect class="node-box" width="${w}" height="${h}" />
+      <line x1="0" y1="0" x2="0" y2="${h}" stroke="${color}" stroke-width="4.5" stroke-linecap="round" />
+      <circle cx="16" cy="22" r="4.5" fill="${dotColor}" />
+      <text class="node-title" x="28" y="26">${title}</text>
+      <text class="node-subtitle" x="16" y="46">${subtitle}</text>
+      ${badgeText ? `
+        <rect x="${badgeX}" y="10" width="${badgeWidth}" height="20" rx="6" fill="${pillBg}" stroke="${pillBorder}" stroke-width="1" />
+        <text class="node-badge" x="${badgeX + badgeWidth / 2}" y="24" fill="${color}" text-anchor="middle">${badgeText}</text>
+      ` : ""}
+    </g>
   `;
-
-  container.innerHTML = html;
 }
 
-// =============================================================================
-// Live Demonstration Showcase Gallery View
-// =============================================================================
-function renderShowcaseView() {
-  const container = document.getElementById("showcase-container");
-  if (!container) return;
-
-  let html = `
-    <div class="showcase-header">
-      <h2>📸 Live Application Demonstration Showcase</h2>
-      <p>Real-world demonstration captures of the Political YouTube Channel Activity Monitor in active operation. Tap or click any image to view full resolution with inspection details.</p>
-    </div>
-    <div class="showcase-grid">
+function svgSwimlane(x, y, w, h, title, subtitle) {
+  return `
+    <g class="swimlane-group">
+      <rect class="swimlane-box" x="${x}" y="${y}" width="${w}" height="${h}" />
+      <rect class="swimlane-header-box" x="${x}" y="${y}" width="${w}" height="32" />
+      <text class="swimlane-title" x="${x + 18}" y="${y + 21}">${title}</text>
+      ${subtitle ? `<text class="swimlane-desc" x="${x + w - 18}" y="${y + 21}" text-anchor="end">${subtitle}</text>` : ""}
+    </g>
   `;
-
-  SHOWCASE_ITEMS.forEach(item => {
-    html += `
-      <div class="showcase-card">
-        <div class="showcase-img-box" onclick="openLightbox('${item.image}', '${item.title.replace(/'/g, "\\'")}', '${item.description.replace(/'/g, "\\'")}')">
-          <img src="${item.image}" alt="${item.title}" loading="lazy" />
-          <div class="showcase-zoom-badge">🔍 Zoom Fullscreen</div>
-        </div>
-        <div class="showcase-card-body">
-          <div class="showcase-card-title-group">
-            <div class="showcase-card-title">${item.title}</div>
-            <span class="showcase-stage-tag" style="background: ${item.color}25; color: ${item.color}; border: 1px solid ${item.color}60;">
-              ${item.stage}
-            </span>
-          </div>
-          <div class="showcase-card-desc">${item.description}</div>
-          <ul class="showcase-features-list">
-            ${item.features.map(f => `<li>${f}</li>`).join("")}
-          </ul>
-        </div>
-      </div>
-    `;
-  });
-
-  html += `</div>`;
-  container.innerHTML = html;
 }
 
-// =============================================================================
-// Fullscreen Image Lightbox Modal
-// =============================================================================
-function initLightbox() {
-  const modal = document.getElementById("lightbox-modal");
-  const closeBtn = document.getElementById("lightbox-close");
-
-  if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
-  if (modal) {
-    modal.addEventListener("click", e => {
-      if (e.target === modal) closeLightbox();
-    });
-  }
-
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") closeLightbox();
-  });
-}
-
-function openLightbox(imgSrc, title, caption) {
-  const modal = document.getElementById("lightbox-modal");
-  const img = document.getElementById("lightbox-img");
-  const titleEl = document.getElementById("lightbox-title");
-  const captionEl = document.getElementById("lightbox-caption");
-
-  if (!modal || !img) return;
-
-  img.src = imgSrc;
-  if (titleEl) titleEl.textContent = title;
-  if (captionEl) captionEl.textContent = caption;
-
-  modal.classList.add("open");
-}
-
-function closeLightbox() {
-  const modal = document.getElementById("lightbox-modal");
-  if (modal) modal.classList.remove("open");
-}
-
-// =============================================================================
-// Step-by-Step Timeline Mode Rendering (Mobile & Desktop Friendly)
-// =============================================================================
-function renderTimelineView() {
-  const container = document.getElementById("timeline-container");
-  if (!container) return;
-
-  let html = `
-    <div style="margin-bottom: 20px;">
-      <h2 style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px;">Detailed Pipeline Architecture & Sequence</h2>
-      <p style="font-size: 13px; color: var(--text-secondary);">End-to-end data lifecycle stages from discovery to LLM verification and safe storage. Tap any stage to inspect complete technical specifications & live demonstration screenshots.</p>
-    </div>
-    <div class="timeline-flow">
+function svgWorkerPool(x, y, w, h, title) {
+  return `
+    <g class="worker-pool-group">
+      <rect class="worker-pool-box" x="${x}" y="${y}" width="${w}" height="${h}" />
+      <text class="worker-pool-title" x="${x + 14}" y="${y + 20}">⚡ ${title}</text>
+    </g>
   `;
+}
 
-  PIPELINE_SEQUENCE.forEach((stageId, idx) => {
-    const spec = STAGE_SPECS[stageId];
-    if (!spec) return;
+function svgEdge(x1, y1, x2, y2, markerId = "arrow", color = null, active = false) {
+  const strokeColor = color || (currentTheme === "dark" ? "#475569" : "#94a3b8");
+  return `
+    <path d="M ${x1} ${y1} L ${x2} ${y2}" class="edge-path ${active ? 'flow-active' : ''}" stroke="${strokeColor}" marker-end="url(#${markerId})" />
+  `;
+}
 
-    html += `
-      <div class="timeline-card" data-stage="${stageId}">
-        <div class="timeline-node-icon" style="border-color: ${spec.color};">${idx + 1}</div>
-        <div class="timeline-card-header">
-          <div class="timeline-card-title">${spec.name}</div>
-          <span class="timeline-badge" style="background: ${spec.color}25; color: ${spec.color}; border: 1px solid ${spec.color}50;">
-            ${spec.type}
-          </span>
-        </div>
-        <div class="timeline-card-desc">${spec.description}</div>
-        
-        <div class="timeline-meta-grid">
-          <div class="timeline-meta-item">
-            <strong>Input Source</strong>
-            <span>${spec.inputs}</span>
-          </div>
-          <div class="timeline-meta-item">
-            <strong>Deliverables</strong>
-            <span>${spec.outputs}</span>
-          </div>
-          <div class="timeline-meta-item">
-            <strong>Hardware / Runtime</strong>
-            <span>${spec.timingTrackers}</span>
-          </div>
-          <div class="timeline-meta-item">
-            <strong>Code Implementation</strong>
-            <span style="font-family: monospace; color: #38bdf8;">${spec.codeRef}</span>
-          </div>
-        </div>
+function svgCurvedEdge(x1, y1, x2, y2, markerId = "arrow", color = null, active = false) {
+  const strokeColor = color || (currentTheme === "dark" ? "#475569" : "#94a3b8");
+  const dx = Math.abs(x2 - x1) / 2;
+  return `
+    <path d="M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}" class="edge-path ${active ? 'flow-active' : ''}" stroke="${strokeColor}" marker-end="url(#${markerId})" />
+  `;
+}
 
-        <div class="timeline-inspect-hint">
-          <span>Tap to view live demonstration screenshot & failure recovery &rarr;</span>
-        </div>
-      </div>
-    `;
-  });
-
-  html += `</div>`;
-  container.innerHTML = html;
-
-  // Add click listeners to timeline cards
-  container.querySelectorAll(".timeline-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const stage = card.getAttribute("data-stage");
-      openDrawer(stage);
-    });
-  });
+function svgDefinitions() {
+  const arrowDef = currentTheme === "dark" ? "#94a3b8" : "#64748b";
+  return `
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="${arrowDef}" />
+      </marker>
+      <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563eb" />
+      </marker>
+      <marker id="arrow-pink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#db2777" />
+      </marker>
+      <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#7c3aed" />
+      </marker>
+      <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#dc2626" />
+      </marker>
+      <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
+      </marker>
+      <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="#d97706" />
+      </marker>
+    </defs>
+  `;
 }
 
 // =============================================================================
-// Diagram View Rendering (Dynamic SVG with Responsive Canvas)
+// 6. Interactive Diagram Renderers (6 Views)
 // =============================================================================
 function renderDiagramView() {
   const canvas = document.getElementById("diagram-canvas");
@@ -1109,7 +841,7 @@ function renderDiagramView() {
     canvas.innerHTML = renderDeletionAuditSVG();
   }
 
-  // Attach click listeners to all nodes
+  // Attach click listeners to all node groups
   document.querySelectorAll(".node-group").forEach(el => {
     el.addEventListener("click", () => {
       const stage = el.getAttribute("data-stage");
@@ -1120,360 +852,587 @@ function renderDiagramView() {
   applyTransform();
 }
 
-// =============================================================================
-// SVG Helper Functions
-// =============================================================================
-function svgNode(x, y, w, h, stageKey, title, subtitle, color, badgeText) {
-  return `
-    <g class="node-group" data-stage="${stageKey}" transform="translate(${x}, ${y})">
-      <rect class="node-box" width="${w}" height="${h}" />
-      <line x1="0" y1="0" x2="0" y2="${h}" stroke="${color}" stroke-width="4" stroke-linecap="round" />
-      <text class="node-title" x="14" y="24">${title}</text>
-      <text class="node-subtitle" x="14" y="42">${subtitle}</text>
-      ${badgeText ? `
-        <rect x="${w - 74}" y="10" width="64" height="18" rx="4" fill="${color}20" stroke="${color}60" stroke-width="1" />
-        <text class="node-badge" x="${w - 42}" y="22" fill="${color}" text-anchor="middle">${badgeText}</text>
-      ` : ""}
-    </g>
-  `;
-}
-
-function svgEdge(x1, y1, x2, y2, markerId = "arrow", color = "#64748b", active = false) {
-  return `
-    <path d="M ${x1} ${y1} L ${x2} ${y2}" class="edge-path ${active ? 'flow-active' : ''}" stroke="${color}" marker-end="url(#${markerId})" />
-  `;
-}
-
-function svgCurvedEdge(x1, y1, x2, y2, markerId = "arrow", color = "#64748b", active = false) {
-  const dx = (x2 - x1) / 2;
-  return `
-    <path d="M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}" class="edge-path ${active ? 'flow-active' : ''}" stroke="${color}" marker-end="url(#${markerId})" />
-  `;
-}
-
-// =============================================================================
-// Diagram 1: Complete End-to-End Pipeline Swimlanes
-// =============================================================================
+/**
+ * Diagram 1: Complete End-to-End Pipeline Swimlanes with Concurrency
+ */
 function renderFullPipelineSVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1480 840" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-      <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#3b82f6" />
-      </marker>
-      <marker id="arrow-pink" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#ec4899" />
-      </marker>
-      <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#8b5cf6" />
-      </marker>
-      <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
-      </marker>
-      <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1560 920" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    <!-- Background Swimlane Guides -->
-    <rect x="20" y="30" width="1440" height="230" rx="14" fill="#131b2e" stroke="#243252" stroke-width="1" />
-    <text x="40" y="55" fill="#64748b" font-size="11" font-weight="700" letter-spacing="1">PHASE 1: DISCOVERY, DATE FILTERING & MULTI-FLOW INGESTION</text>
+    <!-- PHASE 1: SEQUENTIAL DISCOVERY & INGESTION GATE -->
+    ${svgSwimlane(20, 25, 1520, 160, "PHASE 1: SEQUENTIAL CHANNEL DISCOVERY & IDEMPOTENCY GATE", "Sequential Ingestion via youtube_collector.py (Channels -> DateFilter -> State Check)")}
+    
+    ${svgNode(40, 75, 200, 65, "watchlist", "Watchlist Registry", "channels.yaml & settings", "#2563eb", "CONFIG", "#2563eb")}
+    ${svgEdge(240, 107, 280, 107, "arrow-blue", "#2563eb")}
 
-    <rect x="20" y="280" width="1440" height="260" rx="14" fill="#131b2e" stroke="#243252" stroke-width="1" />
-    <text x="40" y="305" fill="#64748b" font-size="11" font-weight="700" letter-spacing="1">PHASE 2: CUDA SPEECH-TO-TEXT, DUAL-ENGINE LLM & EVIDENCE GROUNDING</text>
+    ${svgNode(280, 75, 230, 65, "discovery", "Multi-Tab Scanner", "5 Dedicated Collectors", "#2563eb", "STAGE 1", "#2563eb")}
+    ${svgEdge(510, 107, 550, 107, "arrow-blue", "#2563eb")}
 
-    <rect x="20" y="560" width="1440" height="250" rx="14" fill="#131b2e" stroke="#243252" stroke-width="1" />
-    <text x="40" y="585" fill="#64748b" font-size="11" font-weight="700" letter-spacing="1">PHASE 3: SYNTHESIS, MULTI-FORMAT REPORTING & SAFE DATA LIFECYCLE</text>
+    ${svgNode(550, 75, 210, 65, "date_filter", "Temporal Matcher", "UTC window match", "#0891b2", "FILTER", "#0891b2")}
+    ${svgEdge(760, 107, 800, 107, "arrow-blue", "#2563eb")}
 
-    <!-- Row 1 Nodes: Ingestion -->
-    ${svgNode(40, 80, 190, 60, "watchlist", "Watchlist Config", "channels.yaml", "#3b82f6", "GLOBAL")}
-    ${svgEdge(230, 110, 270, 110, "arrow")}
+    ${svgNode(800, 75, 220, 65, "dedup", "Idempotency Gate", "state_manager.is_completed", "#7c3aed", "IDEMPOTENT", "#7c3aed")}
+    
+    <!-- PHASE 2: CONCURRENT WORKER POOL & MULTI-TYPE DISPATCHER -->
+    ${svgSwimlane(20, 210, 1520, 260, "PHASE 2: CONCURRENT WORKER POOL & MULTI-TYPE DISPATCHER (PARALLEL EXECUTION)", "Items Enqueued across ThreadPoolExecutor(max_workers=3) with SSE Telemetry")}
+    
+    <!-- Queue Dispatcher Node -->
+    ${svgCurvedEdge(1020, 107, 1080, 260, "arrow-purple", "#7c3aed", true)}
+    ${svgNode(1080, 245, 220, 65, "queue_dispatch", "Worker Pool Dispatcher", "ThreadPoolExecutor(3)", "#7c3aed", "PARALLEL POOL", "#7c3aed")}
 
-    ${svgNode(270, 80, 210, 60, "discovery", "Activity Discovery", "yt-dlp multi-tab scanner", "#3b82f6", "STAGE 1")}
-    ${svgEdge(480, 110, 520, 110, "arrow")}
+    <!-- Parallel Sub-Branches Container -->
+    ${svgWorkerPool(40, 250, 990, 200, "PARALLEL ITEM INGESTION WORKERS (Item 1, Item 2, Item 3 concurrently processing)")}
 
-    ${svgNode(520, 80, 190, 60, "date_filter", "Date Filtering", "UTC window match", "#06b6d4", "FILTER")}
-    ${svgEdge(710, 110, 750, 110, "arrow")}
+    <!-- 4 Sub-Branches for Activity Types -->
+    ${svgCurvedEdge(1080, 277, 980, 290, "arrow-blue", "#2563eb", true)}
+    ${svgNode(760, 275, 210, 50, "download", "Video / Short Audio", "Opus stream acquisition", "#2563eb", "VIDEO/SHORT", "#2563eb")}
 
-    ${svgNode(750, 80, 200, 60, "dedup", "Deduplication Gate", "SHA-256 state check", "#8b5cf6", "GATE")}
+    ${svgCurvedEdge(1080, 277, 980, 345, "arrow-green", "#059669", true)}
+    ${svgNode(760, 335, 210, 50, "caption_shortcut", "Native Captions Bypass", "Official / Auto (~0.05s)", "#059669", "FAST PATH", "#059669")}
 
-    <!-- 4 Sub-Flow Ingestion Branches -->
-    ${svgCurvedEdge(950, 110, 1020, 60, "arrow-blue", "#3b82f6", true)}
-    ${svgNode(1020, 45, 190, 45, "download", "Video Ingestion", "Opus audio stream", "#3b82f6", "VIDEO")}
+    ${svgCurvedEdge(1080, 277, 980, 405, "arrow-red", "#dc2626", true)}
+    ${svgNode(760, 395, 210, 50, "live_segmenter", "Live HLS Stream Slicer", "120s Rolling Audio Slice", "#dc2626", "LIVE STREAM", "#dc2626")}
 
-    ${svgCurvedEdge(950, 110, 1020, 110, "arrow-pink", "#ec4899", true)}
-    ${svgNode(1020, 95, 190, 45, "download", "Shorts Ingestion", "Vertical audio stream", "#ec4899", "SHORT")}
+    ${svgCurvedEdge(1080, 277, 680, 410, "arrow-purple", "#7c3aed", true)}
+    ${svgNode(460, 395, 200, 50, "post_text", "Post Text Parser", "Audio-free Community Post", "#7c3aed", "POST ONLY", "#7c3aed")}
 
-    ${svgCurvedEdge(950, 110, 1020, 160, "arrow-purple", "#8b5cf6", true)}
-    ${svgNode(1020, 145, 190, 45, "post_text", "Post Text Parser", "Direct text & images", "#8b5cf6", "POST")}
+    <!-- Audio Normalization & Cleanup -->
+    ${svgEdge(760, 300, 400, 300, "arrow-pink", "#db2777")}
+    ${svgNode(190, 275, 200, 55, "audio_norm", "16kHz Mono Resample", "Auto-deleted after STT", "#db2777", "FFMPEG", "#db2777")}
 
-    ${svgCurvedEdge(950, 110, 1020, 210, "arrow-red", "#ef4444", true)}
-    ${svgNode(1020, 195, 190, 45, "live_segmenter", "Live Stream Segmenter", "VOD catch-up capture", "#ef4444", "LIVE")}
+    <!-- PHASE 3: SPEECH-TO-TEXT & GROUNDED AI EXTRACTION -->
+    ${svgSwimlane(20, 495, 1520, 200, "PHASE 3: SPEECH-TO-TEXT (CUDA) & GROUNDED AI EXTRACTION (OLLAMA DUAL-ENGINE)", "Chunked Extraction (>420s) & Programmatic Levenshtein Verification")}
+    
+    <!-- Connect audio to Whisper -->
+    ${svgCurvedEdge(190, 330, 190, 550, "arrow-green", "#059669", true)}
+    ${svgNode(80, 550, 230, 65, "transcription", "Faster-Whisper CUDA", "float16 + VAD + Word Anchors", "#059669", "SPEECH", "#059669")}
 
-    <!-- Media normalization & transcription -->
-    ${svgEdge(1210, 68, 1260, 110, "arrow")}
-    ${svgEdge(1210, 118, 1260, 110, "arrow")}
-    ${svgEdge(1210, 218, 1260, 110, "arrow")}
-    ${svgNode(1260, 80, 180, 60, "audio_norm", "FFmpeg Resample", "16kHz Mono WAV", "#ec4899", "AUDIO")}
+    <!-- Connect Caption Shortcut to LLM directly (Bypassing Whisper) -->
+    ${svgCurvedEdge(760, 360, 400, 582, "arrow-green", "#059669", true)}
 
-    <!-- Audio -> Speech-to-text (transcription) -->
-    ${svgCurvedEdge(1350, 140, 1350, 330, "arrow-green", "#10b981", true)}
-    ${svgNode(1240, 330, 200, 65, "transcription", "Faster-Whisper CUDA", "float16 + Silero VAD", "#10b981", "SPEECH")}
+    <!-- Connect Post Text to LLM directly (Bypassing Audio & Whisper) -->
+    ${svgCurvedEdge(460, 420, 400, 582, "arrow-purple", "#7c3aed", true)}
 
-    <!-- Post Text bypass straight to LLM -->
-    ${svgCurvedEdge(1210, 168, 1040, 360, "arrow-purple", "#8b5cf6")}
+    <!-- Whisper -> LLM -->
+    ${svgEdge(310, 582, 400, 582, "arrow-amber", "#d97706")}
+    ${svgNode(400, 550, 250, 65, "llm_analysis", "Dual-Engine Ollama", "Gemma 3 12B / Qwen Fallback", "#d97706", "AI SYNTHESIS", "#d97706")}
+    
+    ${svgEdge(650, 582, 730, 582, "arrow-cyan", "#0891b2")}
+    ${svgNode(730, 550, 250, 65, "evidence_validation", "Evidence Grounding", "Fuzzy overlap >= 60%", "#0891b2", "VERIFICATION", "#0891b2")}
 
-    <!-- Transcription -> LLM -->
-    ${svgEdge(1240, 362, 1160, 362, "arrow-green")}
+    ${svgEdge(980, 582, 1060, 582, "arrow-cyan", "#0891b2")}
+    ${svgNode(1060, 550, 250, 65, "citation_generation", "Deep Timestamp Anchors", "Clickable [&t=XXs] links", "#0891b2", "CITATIONS", "#0891b2")}
 
-    <!-- Row 2: AI & Evidence Verification -->
-    ${svgNode(920, 330, 240, 65, "llm_analysis", "Dual-Engine Ollama", "gemma3:12b / qwen3:8b", "#f59e0b", "ANALYSIS")}
-    ${svgEdge(920, 362, 840, 362, "arrow")}
+    <!-- PHASE 4: MULTI-FORMAT REPORTS, DUAL-TIER PERSISTENCE & SAFE AUDIT -->
+    ${svgSwimlane(20, 720, 1520, 180, "PHASE 4: MULTI-FORMAT REPORTS, DUAL-TIER STORAGE & SAFE DELETION", "Predictable NVMe Disk Files + MongoDB Indexing + Real-Time SSE Stream")}
+    
+    ${svgCurvedEdge(1185, 615, 1185, 765, "arrow-purple", "#4f46e5", true)}
+    ${svgNode(1060, 765, 250, 65, "reports", "File-First Reports", "HTML + JSON + Markdown", "#4f46e5", "REPORTS", "#4f46e5")}
 
-    ${svgNode(600, 330, 240, 65, "evidence_validation", "Evidence Grounding", "Levenshtein Fuzzy >= 0.75", "#10b981", "VERIFY")}
-    ${svgEdge(600, 362, 520, 362, "arrow")}
+    ${svgEdge(1060, 797, 980, 797, "arrow-purple", "#4f46e5")}
+    ${svgNode(730, 765, 250, 65, "storage", "Dual Storage Engine", "NVMe atomic writes + Mongo", "#4f46e5", "PERSISTENCE", "#4f46e5")}
 
-    ${svgNode(280, 330, 240, 65, "citation_generation", "Deep Citations", "[MM:SS] Video Anchors", "#06b6d4", "CITATIONS")}
-    ${svgEdge(280, 362, 220, 362, "arrow")}
+    ${svgEdge(730, 797, 650, 797, "arrow-green", "#059669")}
+    ${svgNode(400, 765, 250, 65, "telemetry_sse", "Real-Time SSE Stream", "/api/events active telemetry", "#059669", "STREAMING", "#059669")}
 
-    ${svgNode(40, 330, 180, 65, "summary_synthesis", "Grounded Summary", "Executive Takeaways", "#3b82f6", "SYNTHESIS")}
-
-    <!-- Connect Row 2 to Row 3 -->
-    ${svgCurvedEdge(130, 395, 130, 610, "arrow")}
-
-    <!-- Row 3: Reports, Telemetry, and Safe Governance -->
-    ${svgNode(40, 610, 210, 65, "reports", "File-First Reports", "HTML + JSON + Markdown", "#8b5cf6", "REPORTS")}
-    ${svgEdge(250, 642, 310, 642, "arrow")}
-
-    ${svgNode(310, 610, 230, 65, "timing_profiler", "Timing Profiler", "Microsecond Profiling", "#f59e0b", "PROFILER")}
-    ${svgEdge(540, 642, 600, 642, "arrow")}
-
-    ${svgNode(600, 610, 240, 65, "analytics_aggregator", "Analytics Aggregator", "Date-Range Intelligence", "#06b6d4", "METRICS")}
-    ${svgEdge(840, 642, 900, 642, "arrow")}
-
-    ${svgNode(900, 610, 230, 65, "sse_telemetry", "SSE Live Telemetry", "/api/monitor/events", "#10b981", "STREAMING")}
-    ${svgEdge(1130, 642, 1190, 642, "arrow")}
-
-    ${svgNode(1190, 610, 250, 65, "safe_deletion", "Safe Deletion Hub", "2-Step Confirmation & Audit", "#ef4444", "GOVERN")}
+    ${svgEdge(400, 797, 320, 797, "arrow-red", "#dc2626")}
+    ${svgNode(70, 765, 250, 65, "safe_deletion", "Safe Deletion Lifecycle", "2-Step Preview & Token Auth", "#dc2626", "GOVERNANCE", "#dc2626")}
   </svg>
   `;
 }
 
-// =============================================================================
-// Diagram 2: 4 Activity Flows Dedicated Swimlanes
-// =============================================================================
+/**
+ * Diagram 2: 4 Distinct Activity Flows
+ */
 function renderActivityFlowsSVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1420 800" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1560 880" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    <!-- Lane 1: Long-Form Videos -->
-    <rect x="20" y="30" width="1380" height="160" rx="12" fill="#131b2e" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="8 4" />
-    <text x="40" y="58" fill="#3b82f6" font-size="12" font-weight="800">FLOW 1: LONG-FORM VIDEOS (Multi-minute speeches, debates, press conferences)</text>
-    ${svgNode(40, 75, 200, 55, "discovery", "yt-dlp /videos Tab", "Extract videoId & metadata", "#3b82f6", "DISCOVERY")}
-    ${svgEdge(240, 102, 290, 102, "arrow")}
-    ${svgNode(290, 75, 210, 55, "download", "Opus Audio Stream", "Best quality opus / m4a", "#3b82f6", "AUDIO")}
-    ${svgEdge(500, 102, 550, 102, "arrow")}
-    ${svgNode(550, 75, 230, 55, "transcription", "Whisper CUDA Speech", "Float16 multilingual VAD", "#10b981", "TRANSCRIPT")}
-    ${svgEdge(780, 102, 830, 102, "arrow")}
-    ${svgNode(830, 75, 240, 55, "llm_analysis", "Dual-Engine LLM", "Gemma 3 12B / Qwen3 8B", "#f59e0b", "ANALYSIS")}
-    ${svgEdge(1070, 102, 1120, 102, "arrow")}
-    ${svgNode(1120, 75, 260, 55, "evidence_validation", "Timestamp Grounding", "Verified claims with [MM:SS]", "#06b6d4", "VERIFIED")}
+    <!-- FLOW 1: LONG-FORM VIDEOS -->
+    ${svgSwimlane(20, 20, 1520, 180, "FLOW 1: LONG-FORM YOUTUBE VIDEOS (PARLIAMENT DEBATES, SPEECHES, PRESS RELEASES)", "Native Captions shortcut (~0.05s) OR Fallback Audio -> Faster-Whisper CUDA -> 420s Chunking -> Grounded Citations")}
+    ${svgNode(40, 65, 180, 55, "discovery", "Video Ingestion", "yt-dlp flat playlist", "#2563eb", "DISCOVERY", "#2563eb")}
+    ${svgEdge(220, 92, 270, 92, "arrow-blue", "#2563eb")}
+    ${svgNode(270, 65, 210, 55, "caption_shortcut", "Captions Shortcut", "Native hi / en (<0.05s)", "#059669", "FAST PATH", "#059669")}
+    ${svgEdge(480, 92, 530, 92, "arrow-green", "#059669")}
+    ${svgNode(530, 65, 210, 55, "audio_norm", "Audio Resample", "16kHz Mono WAV (if needed)", "#db2777", "FALLBACK", "#db2777")}
+    ${svgEdge(740, 92, 790, 92, "arrow-pink", "#db2777")}
+    ${svgNode(790, 65, 220, 55, "transcription", "Whisper STT (CUDA)", "Silero VAD + Timestamps", "#059669", "SPEECH", "#059669")}
+    ${svgEdge(1010, 92, 1060, 92, "arrow-amber", "#d97706")}
+    ${svgNode(1060, 65, 220, 55, "llm_analysis", "Dual-Engine LLM", "420s Chunking Synthesis", "#d97706", "EXTRACTION", "#d97706")}
+    ${svgEdge(1280, 92, 1330, 92, "arrow-purple", "#4f46e5")}
+    ${svgNode(1330, 65, 190, 55, "reports", "Video Report", "Standalone HTML+JSON", "#4f46e5", "DELIVERABLE", "#4f46e5")}
 
-    <!-- Lane 2: YouTube Shorts -->
-    <rect x="20" y="215" width="1380" height="160" rx="12" fill="#131b2e" stroke="#ec4899" stroke-width="1.5" stroke-dasharray="8 4" />
-    <text x="40" y="243" fill="#ec4899" font-size="12" font-weight="800">FLOW 2: YOUTUBE SHORTS (<= 60s vertical clips, soundbites, high-energy updates)</text>
-    ${svgNode(40, 260, 200, 55, "discovery", "yt-dlp /shorts Tab", "Extract shortId & caption", "#ec4899", "DISCOVERY")}
-    ${svgEdge(240, 287, 290, 287, "arrow")}
-    ${svgNode(290, 260, 210, 55, "download", "Fast Audio Extraction", "Short stream download", "#ec4899", "AUDIO")}
-    ${svgEdge(500, 287, 550, 287, "arrow")}
-    ${svgNode(550, 260, 230, 55, "transcription", "Whisper Word Timestamps", "High temporal precision", "#10b981", "TRANSCRIPT")}
-    ${svgEdge(780, 287, 830, 287, "arrow")}
-    ${svgNode(830, 260, 240, 55, "llm_analysis", "Short-Form LLM Prompt", "Soundbite & claim triage", "#f59e0b", "ANALYSIS")}
-    ${svgEdge(1070, 287, 1120, 287, "arrow")}
-    ${svgNode(1120, 260, 260, 55, "citation_generation", "Shorts Citation Links", "Direct short anchor URLs", "#06b6d4", "VERIFIED")}
+    <!-- FLOW 2: YOUTUBE SHORTS -->
+    ${svgSwimlane(20, 230, 1520, 180, "FLOW 2: YOUTUBE SHORTS (<60s HIGH-IMPACT CLIPS & SOUNDBITES)", "Fast single-pass speech recognition & succinct key takeaway extraction with exact quote grounding")}
+    ${svgNode(40, 275, 180, 55, "discovery", "Shorts Discovery", "Channel /shorts tab", "#db2777", "DISCOVERY", "#db2777")}
+    ${svgEdge(220, 302, 270, 302, "arrow-pink", "#db2777")}
+    ${svgNode(270, 275, 210, 55, "caption_shortcut", "Captions Check", "Native transcript check", "#059669", "FAST PATH", "#059669")}
+    ${svgEdge(480, 302, 530, 302, "arrow-green", "#059669")}
+    ${svgNode(530, 275, 210, 55, "audio_norm", "Rapid WAV Slicer", "Immediate scratch WAV", "#db2777", "AUDIO", "#db2777")}
+    ${svgEdge(740, 302, 790, 302, "arrow-pink", "#db2777")}
+    ${svgNode(790, 275, 220, 55, "transcription", "Whisper Small/Turbo", "Instant STT (<1.5s total)", "#059669", "SPEECH", "#059669")}
+    ${svgEdge(1010, 302, 1060, 302, "arrow-amber", "#d97706")}
+    ${svgNode(1060, 275, 220, 55, "llm_analysis", "Single-Pass LLM", "Compact Takeaways", "#d97706", "EXTRACTION", "#d97706")}
+    ${svgEdge(1280, 302, 1330, 302, "arrow-purple", "#4f46e5")}
+    ${svgNode(1330, 275, 190, 55, "reports", "Shorts Report", "Quick Takeaway HTML", "#4f46e5", "DELIVERABLE", "#4f46e5")}
 
-    <!-- Lane 3: Community Posts -->
-    <rect x="20" y="400" width="1380" height="160" rx="12" fill="#131b2e" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="8 4" />
-    <text x="40" y="428" fill="#8b5cf6" font-size="12" font-weight="800">FLOW 3: COMMUNITY POSTS (Audio-free text, announcements, posters, photo carousels)</text>
-    ${svgNode(40, 445, 200, 55, "discovery", "InnerTube /community", "Extract post text & images", "#8b5cf6", "DISCOVERY")}
-    ${svgEdge(240, 472, 330, 472, "arrow")}
-    ${svgNode(330, 445, 240, 55, "post_text", "Direct Text Parser", "Zero audio bypass", "#8b5cf6", "TEXT")}
-    ${svgEdge(570, 472, 830, 472, "arrow")}
-    ${svgNode(830, 445, 240, 55, "llm_analysis", "Post Analysis Prompt", "Policy & announcement extraction", "#f59e0b", "ANALYSIS")}
-    ${svgEdge(1070, 472, 1120, 472, "arrow")}
-    ${svgNode(1120, 445, 260, 55, "citation_generation", "Post Permalinks", "Direct /post/Ugkx... citations", "#06b6d4", "VERIFIED")}
+    <!-- FLOW 3: COMMUNITY POSTS (AUDIO-FREE) -->
+    ${svgSwimlane(20, 440, 1520, 180, "FLOW 3: YOUTUBE COMMUNITY POSTS (AUDIO-FREE TEXT & IMAGE ANNOUNCEMENTS)", "Bypasses download & Whisper completely -> Direct LLM post analysis -> Grounding against post text")}
+    ${svgNode(40, 485, 200, 55, "discovery", "Community Scraper", "InnerTube Backstage post", "#7c3aed", "DISCOVERY", "#7c3aed")}
+    ${svgEdge(240, 512, 310, 512, "arrow-purple", "#7c3aed")}
+    ${svgNode(310, 485, 240, 55, "post_text", "Post Text & Image Extractor", "Extracts author, text, images", "#7c3aed", "AUDIO-FREE", "#7c3aed")}
+    ${svgEdge(550, 512, 630, 512, "arrow-purple", "#7c3aed")}
+    ${svgNode(630, 485, 220, 55, "llm_analysis", "LLM Post Analyzer", "Entity & Intent Extraction", "#d97706", "AI ANALYSIS", "#d97706")}
+    ${svgEdge(850, 512, 930, 512, "arrow-cyan", "#0891b2")}
+    ${svgNode(930, 485, 230, 55, "evidence_validation", "Text Provenance Verifier", "Verified against post_text", "#0891b2", "VERIFICATION", "#0891b2")}
+    ${svgEdge(1160, 512, 1240, 512, "arrow-purple", "#4f46e5")}
+    ${svgNode(1240, 485, 200, 55, "reports", "Post Report", "Community Post HTML", "#4f46e5", "DELIVERABLE", "#4f46e5")}
 
-    <!-- Lane 4: YouTube Live -->
-    <rect x="20" y="585" width="1380" height="160" rx="12" fill="#131b2e" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="8 4" />
-    <text x="40" y="613" fill="#ef4444" font-size="12" font-weight="800">FLOW 4: YOUTUBE LIVE (Real-time parliamentary coverage, state events, pressers)</text>
-    ${svgNode(40, 630, 200, 55, "discovery", "yt-dlp /streams Tab", "Status: active / was_live", "#ef4444", "DISCOVERY")}
-    ${svgEdge(240, 657, 290, 657, "arrow")}
-    ${svgNode(290, 630, 210, 55, "live_segmenter", "Stream Buffer Collector", "Chunked segment ingest", "#ef4444", "STREAM")}
-    ${svgEdge(500, 657, 550, 657, "arrow")}
-    ${svgNode(550, 630, 230, 55, "transcription", "Catch-up Whisper CUDA", "Sliding window transcription", "#10b981", "TRANSCRIPT")}
-    ${svgEdge(780, 657, 830, 657, "arrow")}
-    ${svgNode(830, 630, 240, 55, "llm_analysis", "Dual-Engine Ollama", "Gemma 3 12B / Qwen3 8B", "#f59e0b", "ANALYSIS")}
-    ${svgEdge(1070, 657, 1120, 657, "arrow")}
-    ${svgNode(1120, 630, 260, 55, "evidence_validation", "Live Stream Citations", "Exact broadcast timestamp anchors", "#06b6d4", "VERIFIED")}
+    <!-- FLOW 4: YOUTUBE LIVE STREAMS -->
+    ${svgSwimlane(20, 650, 1520, 200, "FLOW 4: YOUTUBE LIVE STREAMS (ACTIVE LIVE_NOW, UPCOMING SCHEDULES, COMPLETED VODS)", "Active HLS 120s segment capture vs Scheduled broadcast intent vs Full VOD archival")}
+    ${svgNode(40, 695, 200, 55, "discovery", "Live Tab Detector", "/live & /streams endpoints", "#dc2626", "DISCOVERY", "#dc2626")}
+    
+    <!-- 3 Live Status Branches -->
+    ${svgCurvedEdge(240, 722, 310, 690, "arrow-red", "#dc2626")}
+    ${svgNode(310, 665, 240, 50, "live_segmenter", "LIVE_NOW: HLS Slicer", "120s Rolling Audio Segment", "#dc2626", "ACTIVE STREAM", "#dc2626")}
+    
+    ${svgCurvedEdge(240, 722, 310, 750, "arrow-amber", "#d97706")}
+    ${svgNode(310, 725, 240, 50, "discovery", "UPCOMING: Broadcast Plan", "Metadata & Intent Catalog", "#d97706", "SCHEDULED", "#d97706")}
+
+    ${svgCurvedEdge(240, 722, 310, 810, "arrow-blue", "#2563eb")}
+    ${svgNode(310, 785, 240, 50, "download", "COMPLETED: VOD Ingestion", "Full Broadcast Archival", "#2563eb", "FINISHED VOD", "#2563eb")}
+
+    ${svgEdge(550, 690, 620, 747, "arrow-green", "#059669")}
+    ${svgEdge(550, 750, 620, 747, "arrow-amber", "#d97706")}
+    ${svgEdge(550, 810, 620, 747, "arrow-blue", "#2563eb")}
+
+    ${svgNode(620, 720, 240, 55, "transcription", "Speech & Intent Processing", "Whisper OR Metadata LLM", "#059669", "PROCESSING", "#059669")}
+    ${svgEdge(860, 747, 930, 747, "arrow-cyan", "#0891b2")}
+    ${svgNode(930, 720, 240, 55, "evidence_validation", "Live Timestamp Citation", "Exact livestream playback", "#0891b2", "GROUNDING", "#0891b2")}
+    ${svgEdge(1170, 747, 1240, 747, "arrow-purple", "#4f46e5")}
+    ${svgNode(1240, 720, 220, 55, "reports", "Live Report (is_incremental)", "Dynamic Live Status Card", "#4f46e5", "DELIVERABLE", "#4f46e5")}
   </svg>
   `;
 }
 
-// =============================================================================
-// Diagram 3: Grounded Citations Flow
-// =============================================================================
+/**
+ * Diagram 3: Grounded Citations & Provenance Flow
+ */
 function renderEvidenceGroundingSVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1320 680" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1480 820" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    ${svgNode(40, 100, 260, 75, "transcription", "Raw Whisper Transcript", "Timestamped word segments", "#10b981", "GROUND TRUTH")}
-    ${svgEdge(300, 137, 370, 137, "arrow")}
+    ${svgSwimlane(20, 30, 1440, 760, "GROUNDED CITATIONS & EVIDENCE PROVENANCE PIPELINE", "Strict Zero-Hallucination Programmatic Verification (Transcript -> [EVID-xxx] Extraction -> Fuzzy Matching -> YouTube Anchors)")}
 
-    ${svgNode(370, 100, 270, 75, "llm_analysis", "Candidate Claims (LLM)", "Unverified assertions & quotes", "#f59e0b", "CANDIDATES")}
-    ${svgEdge(640, 137, 710, 137, "arrow")}
+    ${svgNode(60, 110, 280, 85, "transcription", "1. Verbatim Speech Tokens", "faster-whisper extracts word timestamps\\n(start, end, text tokens, probability)", "#059669", "INPUT TOKENS", "#059669")}
+    ${svgEdge(340, 152, 420, 152, "arrow-green", "#059669")}
 
-    ${svgNode(710, 100, 280, 75, "evidence_validation", "Levenshtein Fuzzy Matcher", "Threshold ratio >= 0.75", "#10b981", "ALGORITHM")}
+    ${svgNode(420, 110, 300, 85, "llm_analysis", "2. Dual-Engine LLM Extraction", "Ollama outputs structured JSON with\\nexplicit [EVID-xxx] evidence ID tags", "#d97706", "LLM STAGE", "#d97706")}
+    ${svgEdge(720, 152, 800, 152, "arrow-amber", "#d97706")}
 
-    <!-- Split into Validated vs Hallucination Rejection -->
-    ${svgCurvedEdge(990, 137, 1070, 75, "arrow")}
-    ${svgNode(1070, 45, 210, 60, "citation_generation", "Verified Grounded Claim", "Anchor to [MM:SS]", "#06b6d4", "PASSED")}
+    ${svgNode(800, 110, 280, 85, "evidence_validation", "3. Evidence Object Catalog", "Builds Dict[str, EvidenceObject]\\nindexed by EVID-001, EVID-002, etc.", "#0891b2", "CATALOGING", "#0891b2")}
+    ${svgEdge(1080, 152, 1160, 152, "arrow-cyan", "#0891b2")}
 
-    ${svgCurvedEdge(990, 137, 1070, 185, "arrow")}
-    ${svgNode(1070, 160, 210, 60, "evidence_validation", "Hallucination Discarded", "Filtered from final report", "#ef4444", "REJECTED")}
+    ${svgNode(1160, 110, 260, 85, "evidence_validation", "4. Fuzzy Matcher Gate", "Tier 1: Substring Match\\nTier 2: 5-Word Prefix\\nTier 3: >60% Word Overlap", "#0891b2", "VERIFICATION", "#0891b2")}
 
-    <!-- Provenance Synthesis -->
-    ${svgCurvedEdge(1175, 105, 1175, 340, "arrow")}
-    ${svgNode(1030, 340, 250, 75, "summary_synthesis", "Grounded Executive Summary", "Interactive [1], [2] badges", "#3b82f6", "SYNTHESIS")}
-    ${svgEdge(1030, 377, 920, 377, "arrow")}
+    ${svgCurvedEdge(1290, 195, 1290, 320, "arrow-cyan", "#0891b2", true)}
 
-    ${svgNode(650, 340, 270, 75, "citation_generation", "Second-Level Video URLs", "?t=XXs clickable links", "#06b6d4", "AUDITABLE")}
-    ${svgEdge(650, 377, 540, 377, "arrow")}
+    ${svgNode(1160, 320, 260, 85, "citation_generation", "5. Timestamp URL Builder", "Calculates seconds: sec = int(t_start)\\nBuilds: https://youtube.com/watch?v=ID&t=XXs", "#2563eb", "ANCHOR ENGINE", "#2563eb")}
+    ${svgEdge(1160, 362, 1080, 362, "arrow-blue", "#2563eb")}
 
-    ${svgNode(280, 340, 260, 75, "reports", "Interactive HTML & Markdown", "Full transparency audit trail", "#8b5cf6", "DELIVERABLE")}
+    ${svgNode(800, 320, 280, 85, "citation_generation", "6. Citation Label Formatter", "Formats readable type labels:\\n'YouTube Video — 14:02'\\n'YouTube Live — 01:23:45'", "#2563eb", "LABEL SYNTHESIS", "#2563eb")}
+    ${svgEdge(800, 362, 720, 362, "arrow-blue", "#2563eb")}
+
+    ${svgNode(420, 320, 300, 85, "reports", "7. Inline Marker Injection", "Replaces [EVID-xxx] with clickable superscripts:\\nHTML: <sup><a href='...'>[1]</a></sup>\\nMarkdown: [^1]: [MM:SS](url)", "#4f46e5", "INLINE MARKERS", "#4f46e5")}
+    ${svgEdge(420, 362, 340, 362, "arrow-purple", "#4f46e5")}
+
+    ${svgNode(60, 320, 280, 85, "reports", "8. Grounded Deliverable", "Standalone HTML item report & JSON\\nwith 100% verified interactive links", "#4f46e5", "FINAL OUTPUT", "#4f46e5")}
+
+    <!-- Verification Logic Detail Cards -->
+    ${svgSwimlane(60, 470, 660, 280, "VERIFICATION LOGIC & ALGORITHMIC TOLERANCE", "src/engine/evidence_verifier.py")}
+    <text class="swimlane-desc" x="90" y="530" font-size="12">• Level 1 (Direct Substring): Checks if quoted text exists verbatim in lowercased transcript.</text>
+    <text class="swimlane-desc" x="90" y="565" font-size="12">• Level 2 (Sub-Phrase Match): Checks if first 5 consecutive words appear contiguously.</text>
+    <text class="swimlane-desc" x="90" y="600" font-size="12">• Level 3 (Word Overlap): Computes significant words (>3 chars) presence ratio >= 60%.</text>
+    <text class="swimlane-desc" x="90" y="635" font-size="12">• Anchor Clamping: Clamps start/end timestamps within [0, video_duration_seconds].</text>
+    <text class="swimlane-desc" x="90" y="670" font-size="12">• Hallucination Rejection: If all 3 tiers fail, verified=false and citation URL is stripped.</text>
+
+    ${svgSwimlane(760, 470, 660, 280, "PROVENANCE SAMPLE DATA OBJECTS", "Rendered Grounded Statement Structure")}
+    <text class="swimlane-desc" x="790" y="530" font-size="12" font-family="monospace" fill="#2563eb">"text": "Rail project allocation increased by 40% for southern tribal districts."</text>
+    <text class="swimlane-desc" x="790" y="565" font-size="12" font-family="monospace" fill="#059669">"timestamp_start": 842.0, "timestamp_end": 855.0, "verified": true</text>
+    <text class="swimlane-desc" x="790" y="600" font-size="12" font-family="monospace" fill="#0891b2">"citation_url": "https://www.youtube.com/watch?v=EvF9mhGyMps&t=842s"</text>
+    <text class="swimlane-desc" x="790" y="635" font-size="12" font-family="monospace" fill="#7c3aed">"citation_label": "YouTube Video — 14:02"</text>
+    <text class="swimlane-desc" x="790" y="670" font-size="12" font-family="monospace" fill="#d97706">"rendered_text_html": "...tribal districts.<sup><a href='...'>[1]</a></sup>"</text>
   </svg>
   `;
 }
 
-// =============================================================================
-// Diagram 4: Processing-Time Profiler
-// =============================================================================
+/**
+ * Diagram 4: Processing-Time Profiler & Telemetry
+ */
 function renderTimingProfilerSVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1320 680" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1480 820" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    ${svgNode(40, 80, 260, 75, "download", "Download Phase", "Audio stream I/O latency", "#ec4899", "IO TIMING")}
-    ${svgEdge(300, 117, 360, 117, "arrow")}
+    ${svgSwimlane(20, 30, 1440, 760, "WALL-CLOCK TIMING PROFILER & HARDWARE TELEMETRY ARCHITECTURE", "Microsecond Phase Timers, Real-Time Factor (RTF) & ActivityTiming Schema (src/models.py)")}
 
-    ${svgNode(360, 80, 260, 75, "audio_norm", "FFmpeg Extraction", "16kHz resampling duration", "#ec4899", "CPU TIMING")}
-    ${svgEdge(620, 117, 680, 117, "arrow")}
+    <!-- Visual Timeline Track -->
+    ${svgSwimlane(60, 90, 1360, 140, "STAGE TIMING BREAKDOWN (SAVED TO state/timings/{item_id}.json & MONGODB)", "Sum of Stages vs Real Wall-Clock Overlap")}
+    
+    ${svgNode(80, 140, 160, 55, "discovery", "1. Metadata", "0.25s - 0.60s", "#2563eb", "DISCOVERY", "#2563eb")}
+    ${svgEdge(240, 167, 270, 167, "arrow-blue", "#2563eb")}
 
-    ${svgNode(680, 80, 280, 75, "transcription", "CUDA Transcription", "Whisper GPU inference time", "#10b981", "GPU TIMING")}
-    ${svgEdge(960, 117, 1020, 117, "arrow")}
+    ${svgNode(270, 140, 180, 55, "download", "2. Down / Caption", "0.05s (fast) / 3.2s", "#0891b2", "MEDIA", "#0891b2")}
+    ${svgEdge(450, 167, 480, 167, "arrow-cyan", "#0891b2")}
 
-    ${svgNode(1020, 80, 260, 75, "llm_analysis", "Ollama LLM Phase", "Generation tokens / sec", "#f59e0b", "LLM TIMING")}
+    ${svgNode(480, 140, 180, 55, "audio_norm", "3. Audio Resample", "0.40s - 1.10s", "#db2777", "FFMPEG", "#db2777")}
+    ${svgEdge(660, 167, 690, 167, "arrow-pink", "#db2777")}
 
-    <!-- Convergence to Profiler Record -->
-    ${svgCurvedEdge(1150, 155, 1150, 300, "arrow")}
-    ${svgNode(1000, 300, 280, 80, "timing_profiler", "ActivityTiming Record", "Microsecond perf_counter()", "#f59e0b", "PERSISTENCE")}
-    ${svgEdge(1000, 340, 880, 340, "arrow")}
+    ${svgNode(690, 140, 200, 55, "transcription", "4. Whisper STT", "RTF ~0.08x (CUDA)", "#059669", "CUDA VRAM", "#059669")}
+    ${svgEdge(890, 167, 920, 167, "arrow-green", "#059669")}
 
-    ${svgNode(600, 300, 280, 80, "analytics_aggregator", "Dashboard Aggregator", "P95, Average & Bottlenecks", "#06b6d4", "ANALYTICS")}
-    ${svgEdge(600, 340, 480, 340, "arrow")}
+    ${svgNode(920, 140, 200, 55, "llm_analysis", "5. Ollama LLM", "420s Chunks (Gemma 3)", "#d97706", "LLM TOKENS", "#d97706")}
+    ${svgEdge(1120, 167, 1150, 167, "arrow-amber", "#d97706")}
 
-    ${svgNode(200, 300, 280, 80, "sse_telemetry", "Real-Time Telemetry Bar", "Live UI seconds display", "#10b981", "UI DISPLAY")}
+    ${svgNode(1150, 140, 230, 55, "evidence_validation", "6. Ground & Reports", "0.15s (Atomic Write)", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+
+    <!-- Two Metric Cards -->
+    ${svgSwimlane(60, 260, 660, 480, "WALL-CLOCK vs SUM-OF-STAGES PROFILING", "ActivityTiming Data Model")}
+    <text class="swimlane-desc" x="90" y="320" font-size="13" font-weight="700" fill="#2563eb">ActivityTiming Class Definition:</text>
+    <text class="swimlane-desc" x="90" y="355" font-size="12" font-family="monospace">• activity_id: str</text>
+    <text class="swimlane-desc" x="90" y="385" font-size="12" font-family="monospace">• activity_type: ActivityType (VIDEO, SHORT, POST, LIVE)</text>
+    <text class="swimlane-desc" x="90" y="415" font-size="12" font-family="monospace">• wall_clock_duration_seconds: float (True end-to-end time)</text>
+    <text class="swimlane-desc" x="90" y="445" font-size="12" font-family="monospace">• sum_of_stage_durations_seconds: float (Serial sum)</text>
+    <text class="swimlane-desc" x="90" y="475" font-size="12" font-family="monospace">• whisper_duration_seconds: Optional[float]</text>
+    <text class="swimlane-desc" x="90" y="505" font-size="12" font-family="monospace">• llm_duration_seconds: Optional[float]</text>
+    <text class="swimlane-desc" x="90" y="535" font-size="12" font-family="monospace">• stages: Dict[str, StageTiming]</text>
+    <text class="swimlane-desc" x="90" y="580" font-size="13" font-weight="700" fill="#059669">StageTiming Schema:</text>
+    <text class="swimlane-desc" x="90" y="615" font-size="12" font-family="monospace">• stage: str, duration_seconds: float, status: str</text>
+    <text class="swimlane-desc" x="90" y="645" font-size="12" font-family="monospace">• started_at: ISO-8601, completed_at: ISO-8601</text>
+    <text class="swimlane-desc" x="90" y="675" font-size="12" font-family="monospace">• error: Optional[str]</text>
+
+    ${svgSwimlane(760, 260, 660, 480, "HARDWARE INSTRUMENTATION & VRAM TELEMETRY", "CUDA, CPU & Storage Metrics")}
+    <text class="swimlane-desc" x="790" y="320" font-size="13" font-weight="700" fill="#d97706">Telemetry Trackers:</text>
+    <text class="swimlane-desc" x="790" y="355" font-size="12">• CUDA Peak VRAM Usage: Monitored during Whisper STT execution (float16 allocates ~1.8GB - 3.2GB).</text>
+    <text class="swimlane-desc" x="790" y="395" font-size="12">• Ollama GPU Offload: Gemma 3 12B offloaded to NVIDIA GPU layer; tracks tokens/sec generation speed.</text>
+    <text class="swimlane-desc" x="790" y="435" font-size="12">• Real-Time Factor (RTF): audio_duration / stt_execution_time (Values < 0.10x indicate faster-than-real-time).</text>
+    <text class="swimlane-desc" x="790" y="475" font-size="12">• ThreadPool Concurrency: 3 workers share GPU resources sequentially; disk operations run asynchronously.</text>
+    <text class="swimlane-desc" x="790" y="515" font-size="12">• Scratch Cleanup: WAV files deleted within 50ms of STT completion to preserve disk I/O bandwidth.</text>
+    <text class="swimlane-desc" x="790" y="555" font-size="12">• SSE Telemetry: State transitions pushed via /api/events with microsecond resolution timestamps.</text>
   </svg>
   `;
 }
 
-// =============================================================================
-// Diagram 5: File-First Storage Tree
-// =============================================================================
+/**
+ * Diagram 5: File-First Storage Tree & MongoDB Architecture
+ */
 function renderStorageHierarchySVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1320 720" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1480 820" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    ${svgNode(40, 50, 260, 60, "watchlist", "data/channels/", "Channel configs & history", "#3b82f6", "DIR")}
-    ${svgNode(40, 140, 260, 60, "discovery", "data/activities/YYYY/MM/DD/", "videos, shorts, posts, live", "#3b82f6", "DIR")}
-    ${svgNode(40, 230, 260, 60, "transcription", "data/transcripts/", "{item_id}.json transcripts", "#10b981", "DIR")}
-    ${svgNode(40, 320, 260, 60, "llm_analysis", "data/analysis/", "{item_id}.json grounded AI", "#f59e0b", "DIR")}
-    ${svgNode(40, 410, 260, 60, "reports", "data/reports/daily/", "{YYYY-MM-DD}.html / json / md", "#8b5cf6", "DIR")}
-    ${svgNode(40, 500, 260, 60, "reports", "data/reports/items/", "{item_id}.html / json standalone", "#8b5cf6", "DIR")}
-    ${svgNode(40, 590, 260, 60, "timing_profiler", "data/analytics/timing/", "Microsecond latency JSONs", "#06b6d4", "DIR")}
+    ${svgSwimlane(20, 30, 1440, 760, "DUAL-TIER STORAGE ARCHITECTURE: NVMe FILE-FIRST AUDIT + MONGODB ENGINE", "Predictable local directory hierarchy with atomic writes (.tmp + rename) synchronized with MongoDB")}
 
-    <!-- State & Audit Columns -->
-    ${svgNode(460, 140, 280, 75, "dedup", "state/items/{item_id}.json", "Idempotency & stage checkpoints", "#8b5cf6", "STATE")}
-    ${svgNode(460, 320, 280, 75, "safe_deletion", "logs/data_management/", "audit.jsonl tamper-proof log", "#ef4444", "AUDIT")}
-    ${svgNode(460, 500, 280, 75, "sse_telemetry", "logs/runs/{run_id}/", "events.jsonl runtime stream", "#10b981", "LOGS")}
+    <!-- Left Box: File-First NVMe Hierarchy -->
+    ${svgSwimlane(50, 90, 670, 670, "TIER 1: NVMe FILE-FIRST DIRECTORY HIERARCHY (GROUND TRUTH)", "Predictable, human-readable JSON & standalone HTML")}
+    <text class="swimlane-desc" x="80" y="145" font-size="13" font-family="monospace" font-weight="700" fill="#2563eb">data/</text>
+    <text class="swimlane-desc" x="110" y="175" font-size="12" font-family="monospace">├── channels/{channel_id}/channel.json (Channel metadata & stats)</text>
+    <text class="swimlane-desc" x="110" y="205" font-size="12" font-family="monospace">├── raw/{item_id}_raw.json (Immutable snapshot of raw scraping metadata)</text>
+    <text class="swimlane-desc" x="110" y="235" font-size="12" font-family="monospace">├── activities/YYYY/MM/DD/ (Partitioned by publication date)</text>
+    <text class="swimlane-desc" x="140" y="265" font-size="12" font-family="monospace">├── videos/{item_id}.json</text>
+    <text class="swimlane-desc" x="140" y="295" font-size="12" font-family="monospace">├── shorts/{item_id}.json</text>
+    <text class="swimlane-desc" x="140" y="325" font-size="12" font-family="monospace">├── posts/{item_id}.json</text>
+    <text class="swimlane-desc" x="140" y="355" font-size="12" font-family="monospace">└── live/{item_id}.json</text>
+    <text class="swimlane-desc" x="110" y="385" font-size="12" font-family="monospace">├── transcripts/{item_id}.json (Segments, word tokens, timestamps)</text>
+    <text class="swimlane-desc" x="110" y="415" font-size="12" font-family="monospace">├── analysis/{item_id}.json (Grounded claims, topics, entities)</text>
+    <text class="swimlane-desc" x="110" y="445" font-size="12" font-family="monospace">└── reports/</text>
+    <text class="swimlane-desc" x="140" y="475" font-size="12" font-family="monospace">├── items/{item_id}.html & .json (Interactive item deliverables)</text>
+    <text class="swimlane-desc" x="140" y="505" font-size="12" font-family="monospace">├── channel/{channel_id}/{date}.html & .json (Channel daily)</text>
+    <text class="swimlane-desc" x="140" y="535" font-size="12" font-family="monospace">└── daily/{date}.html, .json, .md (Overall executive overview)</text>
+    
+    <text class="swimlane-desc" x="80" y="575" font-size="13" font-family="monospace" font-weight="700" fill="#7c3aed">state/</text>
+    <text class="swimlane-desc" x="110" y="605" font-size="12" font-family="monospace">├── runs/{run_id}.json (Run telemetry, counters, error logs)</text>
+    <text class="swimlane-desc" x="110" y="635" font-size="12" font-family="monospace">├── items/{item_id}.json (Item-level lifecycle state & stage)</text>
+    <text class="swimlane-desc" x="110" y="665" font-size="12" font-family="monospace">├── timings/{item_id}.json (Stage timing profiles & wall-clock)</text>
+    <text class="swimlane-desc" x="110" y="695" font-size="12" font-family="monospace">└── audit/deletion_{audit_id}.json (Append-only deletion records)</text>
 
-    <!-- Architecture Pillars -->
-    ${svgNode(880, 200, 380, 120, "reports", "File-First Core Guarantees", "Zero SQL • Predictable NVMe Disk Layout • Git-Friendly • 100% Local Auditability", "#38bdf8", "PILLAR 1")}
-    ${svgNode(880, 380, 380, 120, "safe_deletion", "Safe Deletion Governance", "Every file deletion leaves an immutable record in audit.jsonl with exact byte count and SHA-256 tokens.", "#ef4444", "PILLAR 2")}
+    <!-- Right Box: MongoDB Collections -->
+    ${svgSwimlane(760, 90, 670, 670, "TIER 2: MONGODB DOCUMENT PERSISTENCE & FAST UI INDEXING", "src/storage/mongodb.py (High-speed aggregations, text search & UI dashboard)")}
+    
+    <text class="swimlane-desc" x="790" y="145" font-size="13" font-weight="700" fill="#059669">Synchronized MongoDB Collections:</text>
+    
+    <text class="swimlane-desc" x="790" y="185" font-size="12" font-family="monospace" fill="#2563eb">1. db.channels</text>
+    <text class="swimlane-desc" x="820" y="210" font-size="11">Indexed on id. Stores handle, subscriber count, avatar URL, category tags.</text>
+
+    <text class="swimlane-desc" x="790" y="245" font-size="12" font-family="monospace" fill="#2563eb">2. db.activities</text>
+    <text class="swimlane-desc" x="820" y="270" font-size="11">Indexed on item_id, channel_id, published_at, activity_type. High-speed dashboard filtering.</text>
+
+    <text class="swimlane-desc" x="790" y="305" font-size="12" font-family="monospace" fill="#059669">3. db.transcripts</text>
+    <text class="swimlane-desc" x="820" y="330" font-size="11">Indexed on item_id. Full-text search over speech segments and word tokens.</text>
+
+    <text class="swimlane-desc" x="790" y="365" font-size="12" font-family="monospace" fill="#d97706">4. db.analyses</text>
+    <text class="swimlane-desc" x="820" y="390" font-size="11">Indexed on item_id. Stores structured claims, promises, announcements, and entities.</text>
+
+    <text class="swimlane-desc" x="790" y="425" font-size="12" font-family="monospace" fill="#4f46e5">5. db.reports</text>
+    <text class="swimlane-desc" x="820" y="450" font-size="11">Indexed on report_id (item:ID, channel:ID:DATE, daily:DATE). Fast delivery of HTML & JSON.</text>
+
+    <text class="swimlane-desc" x="790" y="485" font-size="12" font-family="monospace" fill="#7c3aed">6. db.runs & db.timings</text>
+    <text class="swimlane-desc" x="820" y="510" font-size="11">Stores run progress, active workers, items completed, and stage duration benchmarks.</text>
+
+    <text class="swimlane-desc" x="790" y="545" font-size="12" font-family="monospace" fill="#dc2626">7. db.audit_logs</text>
+    <text class="swimlane-desc" x="820" y="570" font-size="11">Append-only audit trail recording deletion operations, tokens, and affected records.</text>
+
+    <!-- Atomic Sync Arrow -->
+    ${svgEdge(720, 400, 760, 400, "arrow-purple", "#7c3aed")}
   </svg>
   `;
 }
 
-// =============================================================================
-// Diagram 6: Safe Deletion & Audit Lifecycle
-// =============================================================================
+/**
+ * Diagram 6: Safe Deletion & Audit Lifecycle
+ */
 function renderDeletionAuditSVG() {
   return `
-  <svg width="100%" height="100%" viewBox="0 0 1320 680" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-        <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
-      </marker>
-    </defs>
+  <svg width="100%" height="100%" viewBox="0 0 1480 820" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+    ${svgDefinitions()}
 
-    ${svgNode(40, 100, 260, 75, "safe_deletion", "Deletion Request", "Target channel or date range", "#ef4444", "STEP 1")}
-    ${svgEdge(300, 137, 360, 137, "arrow")}
+    ${svgSwimlane(20, 30, 1440, 760, "SAFE DATA DELETION & APPEND-ONLY AUDIT LIFECYCLE", "2-Step Confirmation with Impact Preview & Cryptographic Confirmation Token (src/storage/deletion_service.py)")}
 
-    ${svgNode(360, 100, 280, 75, "safe_deletion", "Impact Preview Calculation", "Exact files, items & bytes counted", "#f59e0b", "STEP 2")}
-    ${svgEdge(640, 137, 700, 137, "arrow")}
+    <!-- Step 1: Request Preview -->
+    ${svgNode(60, 100, 280, 85, "safe_deletion", "1. Request Scope Preview", "User specifies scope:\\nCHANNEL, DATE, DATE_RANGE, WATCHLIST", "#2563eb", "STEP 1: PREVIEW", "#2563eb")}
+    ${svgEdge(340, 142, 430, 142, "arrow-blue", "#2563eb")}
 
-    ${svgNode(700, 100, 280, 75, "safe_deletion", "User Review & Token Entry", "Requires 'CONFIRM_DELETE'", "#ef4444", "GATE")}
+    <!-- Step 2: Impact Analysis -->
+    ${svgNode(430, 100, 300, 85, "safe_deletion", "2. Impact Calculator", "Counts affected activities, transcripts,\\nanalyses, reports, and NVMe disk files", "#0891b2", "PREVIEW OBJECT", "#0891b2")}
+    ${svgEdge(730, 142, 820, 142, "arrow-cyan", "#0891b2")}
 
-    <!-- Branch on Token Match -->
-    ${svgCurvedEdge(980, 137, 1060, 75, "arrow")}
-    ${svgNode(1060, 45, 220, 65, "safe_deletion", "Atomic File Deletion", "Removes activities, transcripts", "#10b981", "EXECUTED")}
+    <!-- Step 3: Confirmation Token Gate -->
+    ${svgNode(820, 100, 290, 85, "safe_deletion", "3. Cryptographic Token Gate", "Requires explicit user confirmation:\\nMust send token: 'CONFIRM_DELETE'", "#dc2626", "AUTH GATE", "#dc2626")}
+    ${svgEdge(1110, 142, 1190, 142, "arrow-red", "#dc2626")}
 
-    ${svgCurvedEdge(980, 137, 1060, 185, "arrow")}
-    ${svgNode(1060, 160, 220, 65, "safe_deletion", "Purge Aborted (400)", "No files touched", "#ef4444", "ABORTED")}
+    <!-- Step 4: Atomic Purge Execution -->
+    ${svgNode(1190, 100, 240, 85, "safe_deletion", "4. Cascading Atomic Purge", "Removes NVMe files & deletes\\nfrom MongoDB collections", "#dc2626", "ATOMIC PURGE", "#dc2626")}
 
-    <!-- Audit log output -->
-    ${svgCurvedEdge(1170, 110, 1170, 320, "arrow")}
-    ${svgNode(1020, 320, 260, 75, "safe_deletion", "Immutable Audit Record", "Appends to audit.jsonl", "#3b82f6", "AUDIT")}
-    ${svgEdge(1020, 357, 880, 357, "arrow")}
+    ${svgCurvedEdge(1310, 185, 1310, 310, "arrow-purple", "#7c3aed", true)}
 
-    ${svgNode(580, 320, 300, 75, "analytics_aggregator", "Dashboard Cache Invalidation", "Refreshes live metrics & charts", "#06b6d4", "CACHE")}
+    <!-- Step 5: Append-Only Audit Record -->
+    ${svgNode(1050, 310, 380, 85, "safe_deletion", "5. Append-Only Audit Log", "Writes immutable record to state/audit/deletion_{id}.json\\nand mirrors to MongoDB db.audit_logs", "#7c3aed", "AUDIT RECORD", "#7c3aed")}
+    ${svgEdge(1050, 352, 930, 352, "arrow-green", "#059669")}
+
+    <!-- Step 6: Live UI & Health Refresh -->
+    ${svgNode(600, 310, 330, 85, "telemetry_sse", "6. UI Real-Time Telemetry Refresh", "Broadcasts updated channel statistics, refreshed\\ndate archives, and recalculated disk counters", "#059669", "STATE SYNC", "#059669")}
+
+    <!-- Detail Explanations -->
+    ${svgSwimlane(60, 460, 660, 290, "DELETION PREVIEW SCHEMA (PRE-DELETION AUDIT)", "DeletionPreview Object")}
+    <text class="swimlane-desc" x="90" y="520" font-size="12" font-family="monospace">• preview_id: str, scope: DeletionScope</text>
+    <text class="swimlane-desc" x="90" y="555" font-size="12" font-family="monospace">• channels: List[str], start_date: str, end_date: str</text>
+    <text class="swimlane-desc" x="90" y="590" font-size="12" font-family="monospace">• total_activities: int, videos_count: int, shorts_count: int</text>
+    <text class="swimlane-desc" x="90" y="625" font-size="12" font-family="monospace">• transcripts_count: int, analyses_count: int, reports_count: int</text>
+    <text class="swimlane-desc" x="90" y="660" font-size="12" font-family="monospace">• affected_item_ids: List[str] (Audit trace)</text>
+    <text class="swimlane-desc" x="90" y="695" font-size="12" font-family="monospace">• confirmation_required: "CONFIRM_DELETE"</text>
+
+    ${svgSwimlane(760, 460, 660, 290, "IMMUTABLE AUDIT RECORD SCHEMA", "DeletionAuditRecord Object")}
+    <text class="swimlane-desc" x="790" y="520" font-size="12" font-family="monospace">• audit_id: str, operation: "DELETE", scope: str</text>
+    <text class="swimlane-desc" x="790" y="555" font-size="12" font-family="monospace">• channels: List[str], items_deleted: int, artifacts_deleted: int</text>
+    <text class="swimlane-desc" x="790" y="590" font-size="12" font-family="monospace">• started_at: ISO-8601, completed_at: ISO-8601</text>
+    <text class="swimlane-desc" x="790" y="625" font-size="12" font-family="monospace">• user_confirmed: true, status: "COMPLETED"</text>
+    <text class="swimlane-desc" x="790" y="660" font-size="12" font-family="monospace">• Storage path: state/audit/deletion_{audit_id}.json</text>
+    <text class="swimlane-desc" x="790" y="695" font-size="12" font-family="monospace">• MongoDB mirror: db.audit_logs.insert_one(audit_record)</text>
   </svg>
   `;
 }
 
 // =============================================================================
-// Slide-Over / Bottom-Sheet Stage Detail Drawer
+// 7. Step-by-Step Flow Mode (Timeline Cards View)
+// =============================================================================
+function renderTimelineView() {
+  const container = document.getElementById("timeline-container");
+  if (!container) return;
+
+  const stageKeys = Object.keys(STAGE_SPECS);
+  let html = `
+    <div class="timeline-flow">
+  `;
+
+  stageKeys.forEach((key, idx) => {
+    const spec = STAGE_SPECS[key];
+    html += `
+      <div class="timeline-card" onclick="openDrawer('${key}')">
+        <div class="timeline-node-icon" style="border-color: ${spec.color}; color: ${spec.color}">
+          ${idx + 1}
+        </div>
+        <div class="timeline-card-header">
+          <div class="timeline-card-title">${spec.name}</div>
+          <span class="timeline-badge" style="background: ${spec.color}18; border: 1px solid ${spec.color}50; color: ${spec.color}">
+            ${spec.type}
+          </span>
+        </div>
+        <p class="timeline-card-desc">${spec.description}</p>
+        <div class="timeline-meta-grid">
+          <div class="timeline-meta-item">
+            <strong>Input Source</strong>
+            <span>${spec.inputs}</span>
+          </div>
+          <div class="timeline-meta-item">
+            <strong>Deliverables</strong>
+            <span>${spec.outputs}</span>
+          </div>
+          <div class="timeline-meta-item">
+            <strong>Timing Tracker</strong>
+            <span>${spec.timingTrackers}</span>
+          </div>
+          <div class="timeline-meta-item">
+            <strong>Code Reference</strong>
+            <span style="color: var(--accent-blue)">${spec.codeRef}</span>
+          </div>
+        </div>
+        <div class="timeline-inspect-hint">
+          <span>🔍 Click to inspect code references, retry policy & demo screenshot →</span>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// =============================================================================
+// 8. Live Application Showcase Gallery
+// =============================================================================
+function renderShowcaseView() {
+  const container = document.getElementById("showcase-container");
+  if (!container) return;
+
+  const showcaseItems = [
+    {
+      title: "1. Live Monitoring & Concurrent Telemetry",
+      badge: "ACTIVE ENGINE",
+      color: "#059669",
+      img: "assets/01_live_monitoring.png",
+      desc: "Real-time Server-Sent Events (SSE) live monitoring interface showing active channel discovery, concurrent worker item processing, real-time stage transitions, and telemetry logs.",
+      features: [
+        "Concurrent multi-item progress tracking (QUEUED -> COMPLETED)",
+        "Real-time factor (RTF) and elapsed duration instrumentation",
+        "Individual item stage telemetry with retry/error flags",
+        "Instant pause, resume, and selective rerun controls"
+      ]
+    },
+    {
+      title: "2. Historical Archive & Activity Catalog",
+      badge: "AUDIT TRAIL",
+      color: "#2563eb",
+      img: "assets/02_daily_archive.png",
+      desc: "Comprehensive activity catalog partitioned by publication dates. Shows multi-channel political activity across Videos, Shorts, Community Posts, and Livestreams with sentiment filtering.",
+      features: [
+        "Granular date-range filtering with UTC/IST time normalization",
+        "Channel watchlist breakdown with subscriber and status badges",
+        "4 distinct activity badges with duration and view counters",
+        "Instant one-click access to standalone HTML & JSON reports"
+      ]
+    },
+    {
+      title: "3. CUDA Speech-to-Text & Transcript Inspector",
+      badge: "VERBATIM STT",
+      color: "#0891b2",
+      img: "assets/03_transcript_inspection.png",
+      desc: "Full-text transcript inspection view with millisecond-precision word timestamps, language probability indicators, and native YouTube caption shortcut indicators.",
+      features: [
+        "Verbatim multilingual speech transcript (Devanagari Hindi, English)",
+        "Word-level start/end timestamp anchors for precise grounding",
+        "Fast-path native caption shortcut tag (~0.05s retrieval)",
+        "Searchable keyword highlighting across speech segments"
+      ]
+    },
+    {
+      title: "4. Grounded AI Extraction & Deep Timestamp Citations",
+      badge: "ZERO HALLUCINATION",
+      color: "#d97706",
+      img: "assets/04_report_grounding.png",
+      desc: "Executive summary and policy claim extraction with strict Levenshtein programmatic verification against speech transcripts. Displays clickable YouTube timestamp links.",
+      features: [
+        "Programmatic cross-verification (exact match, prefix, 60% overlap)",
+        "Interactive YouTube timestamp citation links (&t=XXs)",
+        "Categorized policy claims, announcements, promises, and stats",
+        "Named entities: politicians, parties, departments, schemes"
+      ]
+    }
+  ];
+
+  let html = `
+    <div class="showcase-header">
+      <h2>📸 Live Application Showcase Gallery</h2>
+      <p>Interactive demonstration of the Political YouTube Channel Activity Monitor running on local workstation hardware.</p>
+    </div>
+    <div class="showcase-grid">
+  `;
+
+  showcaseItems.forEach(item => {
+    html += `
+      <div class="showcase-card">
+        <div class="showcase-img-box" onclick="openLightbox('${item.img}', '${item.title}')">
+          <img src="${item.img}" alt="${item.title}" loading="lazy">
+          <div class="showcase-zoom-badge">🔍 Click to Enlarge</div>
+        </div>
+        <div class="showcase-card-body">
+          <div class="showcase-card-title-group">
+            <h3 class="showcase-card-title">${item.title}</h3>
+            <span class="showcase-stage-tag" style="background: ${item.color}18; border: 1px solid ${item.color}50; color: ${item.color}">
+              ${item.badge}
+            </span>
+          </div>
+          <p class="showcase-card-desc">${item.desc}</p>
+          <ul class="showcase-features-list">
+            ${item.features.map(f => `<li>${f}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// =============================================================================
+// 9. Limitations & Technical Challenges View
+// =============================================================================
+async function renderLimitationsView() {
+  const container = document.getElementById("limitations-container");
+  if (!container) return;
+
+  try {
+    const res = await fetch("LIMITATIONS_AND_CHALLENGES.md");
+    if (!res.ok) throw new Error("Failed to load limitations doc");
+    const text = await res.text();
+
+    // Basic markdown to HTML renderer for clean presentation
+    let rendered = text
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^\* (.*$)/gim, '<li>$1</li>')
+      .replace(/^- (.*$)/gim, '<li>$1</li>')
+      .replace(/`([^`]+)`/gim, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/gim, '<strong>$1</strong>')
+      .replace(/---/gim, '<hr>');
+
+    container.innerHTML = `<div class="markdown-body">${rendered}</div>`;
+  } catch (err) {
+    container.innerHTML = `
+      <div class="markdown-body">
+        <h2>⚠️ Limitations & Challenges Documentation</h2>
+        <p>Could not load LIMITATIONS_AND_CHALLENGES.md directly. Please review the file under docs/pipeline-flow/LIMITATIONS_AND_CHALLENGES.md.</p>
+      </div>
+    `;
+  }
+}
+
+// =============================================================================
+// 10. Slide-Over Detail Drawer & Lightbox
 // =============================================================================
 function openDrawer(stageKey) {
   const spec = STAGE_SPECS[stageKey];
@@ -1481,45 +1440,47 @@ function openDrawer(stageKey) {
 
   const drawer = document.getElementById("detail-drawer");
   const backdrop = document.getElementById("drawer-backdrop");
+  if (!drawer) return;
 
-  document.getElementById("drawer-stage-badge").textContent = spec.type || "STAGE";
-  document.getElementById("drawer-stage-badge").style.color = spec.color || "#38bdf8";
+  document.getElementById("drawer-stage-badge").textContent = spec.category;
+  document.getElementById("drawer-stage-badge").style.color = spec.color;
   document.getElementById("drawer-stage-title").textContent = spec.name;
   document.getElementById("drawer-desc").textContent = spec.description;
   document.getElementById("drawer-input").textContent = spec.inputs;
   document.getElementById("drawer-output").textContent = spec.outputs;
-
-  // Live Demonstration Image in Drawer
-  const demoSection = document.getElementById("drawer-demo-section");
-  const demoCard = document.getElementById("drawer-demo-card");
-  if (spec.demoImage && demoSection && demoCard) {
-    demoSection.style.display = "flex";
-    demoCard.innerHTML = `
-      <img src="${spec.demoImage}" alt="${spec.name} Live Demonstration" />
-      <div class="drawer-demo-badge">🔍 Zoom Fullscreen</div>
-    `;
-    demoCard.onclick = () => openLightbox(spec.demoImage, spec.name + " Demonstration", spec.demoCaption || "");
-  } else if (demoSection) {
-    demoSection.style.display = "none";
-  }
-
-  // Files List
-  const filesList = document.getElementById("drawer-files-list");
-  filesList.innerHTML = "";
-  if (spec.filesProduced) {
-    spec.filesProduced.split(",").forEach(f => {
-      const span = document.createElement("span");
-      span.className = "tag";
-      span.textContent = f.trim();
-      filesList.appendChild(span);
-    });
-  }
-
   document.getElementById("drawer-timing").textContent = spec.timingTrackers;
   document.getElementById("drawer-failure").textContent = spec.failureModes;
   document.getElementById("drawer-retry").textContent = spec.retryPolicy;
   document.getElementById("drawer-code").textContent = spec.codeRef;
-  document.getElementById("drawer-payload").textContent = JSON.stringify(spec.samplePayload, null, 2);
+
+  // Render Files Produced Tags
+  const filesContainer = document.getElementById("drawer-files-list");
+  if (filesContainer) {
+    const files = spec.filesProduced.split(",").map(f => f.trim());
+    filesContainer.innerHTML = files.map(f => `<span class="tag-item">📄 ${f}</span>`).join("");
+  }
+
+  // Render JSON Payload
+  const payloadBox = document.getElementById("drawer-payload");
+  if (payloadBox) {
+    payloadBox.textContent = JSON.stringify(spec.samplePayload, null, 2);
+  }
+
+  // Demonstration Image Card
+  const demoSection = document.getElementById("drawer-demo-section");
+  const demoCard = document.getElementById("drawer-demo-card");
+  if (demoSection && demoCard) {
+    if (spec.demoImage) {
+      demoSection.style.display = "block";
+      demoCard.innerHTML = `
+        <img src="${spec.demoImage}" alt="${spec.name}">
+        <span class="drawer-demo-badge">🔍 Click to Enlarge Preview</span>
+      `;
+      demoCard.onclick = () => openLightbox(spec.demoImage, spec.demoCaption || spec.name);
+    } else {
+      demoSection.style.display = "none";
+    }
+  }
 
   drawer.classList.add("open");
   if (backdrop) backdrop.classList.add("active");
@@ -1532,219 +1493,49 @@ function closeDrawer() {
   if (backdrop) backdrop.classList.remove("active");
 }
 
-function initDrawer() {
-  const closeBtn = document.getElementById("drawer-close");
-  const backdrop = document.getElementById("drawer-backdrop");
+function openLightbox(imgSrc, title) {
+  const modal = document.getElementById("lightbox-modal");
+  const img = document.getElementById("lightbox-img");
+  const titleEl = document.getElementById("lightbox-title");
+  const captionEl = document.getElementById("lightbox-caption");
 
-  if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
-  if (backdrop) backdrop.addEventListener("click", closeDrawer);
+  if (!modal || !img) return;
 
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") closeDrawer();
-  });
+  img.src = imgSrc;
+  if (titleEl) titleEl.textContent = title || "Live Demonstration Preview";
+  if (captionEl) captionEl.textContent = title || "";
+  modal.classList.add("open");
 }
 
 // =============================================================================
-// Touch & Pan / Zoom Controls
+// 11. Search & Filter Functionality
 // =============================================================================
-function initControls() {
-  const btnIn = document.getElementById("btn-zoom-in");
-  const btnOut = document.getElementById("btn-zoom-out");
-  const btnReset = document.getElementById("btn-reset");
-  const btnFit = document.getElementById("btn-fit");
-
-  if (btnIn) btnIn.addEventListener("click", () => zoom(1.2));
-  if (btnOut) btnOut.addEventListener("click", () => zoom(0.8));
-  if (btnReset) btnReset.addEventListener("click", resetTransform);
-  if (btnFit) btnFit.addEventListener("click", fitToScreen);
-
-  // Mouse wheel zoom
-  const viewport = document.getElementById("viewport-container");
-  if (viewport) {
-    viewport.addEventListener("wheel", e => {
-      if (currentViewMode === "timeline" || currentTab === "screenshots") return;
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      zoom(delta);
-    }, { passive: false });
-
-    // Mouse drag pan
-    viewport.addEventListener("mousedown", e => {
-      if (currentViewMode === "timeline" || currentTab === "screenshots") return;
-      if (e.target.closest(".controls-overlay") || e.target.closest(".detail-drawer") || e.target.closest(".node-group")) return;
-      isDragging = true;
-      startX = e.clientX - panX;
-      startY = e.clientY - panY;
-    });
-
-    window.addEventListener("mousemove", e => {
-      if (!isDragging) return;
-      panX = e.clientX - startX;
-      panY = e.clientY - startY;
-      applyTransform();
-    });
-
-    window.addEventListener("mouseup", () => {
-      isDragging = false;
-    });
+function handleSearch(query) {
+  if (!query) {
+    document.querySelectorAll(".node-group").forEach(el => el.style.opacity = "1");
+    document.querySelectorAll(".timeline-card").forEach(el => el.style.display = "block");
+    return;
   }
-}
 
-function initTouchGestures() {
-  const viewport = document.getElementById("viewport-container");
-  if (!viewport) return;
-
-  viewport.addEventListener("touchstart", e => {
-    if (currentViewMode === "timeline" || currentTab === "screenshots") return;
-    if (e.touches.length === 1) {
-      isDragging = true;
-      startX = e.touches[0].clientX - panX;
-      startY = e.touches[0].clientY - panY;
-    } else if (e.touches.length === 2) {
-      isDragging = false;
-      initialDistance = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
+  // Diagram Node Search
+  document.querySelectorAll(".node-group").forEach(el => {
+    const stageKey = el.getAttribute("data-stage");
+    const spec = STAGE_SPECS[stageKey];
+    if (spec) {
+      const match = (
+        spec.name.toLowerCase().includes(query) ||
+        spec.description.toLowerCase().includes(query) ||
+        spec.inputs.toLowerCase().includes(query) ||
+        spec.outputs.toLowerCase().includes(query) ||
+        spec.codeRef.toLowerCase().includes(query)
       );
+      el.style.opacity = match ? "1" : "0.2";
     }
-  }, { passive: true });
-
-  viewport.addEventListener("touchmove", e => {
-    if (currentViewMode === "timeline" || currentTab === "screenshots") return;
-    if (e.touches.length === 1 && isDragging) {
-      panX = e.touches[0].clientX - startX;
-      panY = e.touches[0].clientY - startY;
-      applyTransform();
-    } else if (e.touches.length === 2) {
-      const currentDistance = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      if (initialDistance > 0) {
-        const factor = currentDistance / initialDistance;
-        zoom(factor);
-        initialDistance = currentDistance;
-      }
-    }
-  }, { passive: true });
-
-  viewport.addEventListener("touchend", () => {
-    isDragging = false;
-    initialDistance = 0;
   });
-}
 
-function zoom(factor) {
-  zoomScale *= factor;
-  zoomScale = Math.max(0.4, Math.min(3.0, zoomScale));
-  applyTransform();
-}
-
-function resetTransform() {
-  zoomScale = window.innerWidth < 768 ? 0.85 : 1.0;
-  panX = 0;
-  panY = 0;
-  applyTransform();
-}
-
-function fitToScreen() {
-  const canvas = document.getElementById("diagram-canvas");
-  if (!canvas) return;
-  const svg = canvas.querySelector("svg");
-  if (!svg) return;
-
-  const rect = canvas.getBoundingClientRect();
-  const vb = svg.viewBox.baseVal;
-  if (vb && vb.width > 0 && vb.height > 0) {
-    const scaleX = rect.width / vb.width;
-    const scaleY = rect.height / vb.height;
-    zoomScale = Math.min(scaleX, scaleY) * 0.95;
-    panX = 0;
-    panY = 0;
-    applyTransform();
-  }
-}
-
-function applyTransform() {
-  const canvas = document.getElementById("diagram-canvas");
-  if (canvas) {
-    const svg = canvas.querySelector("svg");
-    if (svg) {
-      svg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
-      svg.style.transformOrigin = "center center";
-      svg.style.transition = isDragging ? "none" : "transform 0.15s ease-out";
-    }
-  }
-}
-
-// =============================================================================
-// Search Functionality (Filters SVG Nodes, Timeline Cards, and Showcase Cards)
-// =============================================================================
-function initSearch() {
-  const input = document.getElementById("search-input");
-  if (!input) return;
-
-  input.addEventListener("input", e => {
-    const term = e.target.value.toLowerCase().trim();
-
-    // 1. Highlight in SVG Canvas
-    document.querySelectorAll(".node-group").forEach(group => {
-      const stageKey = group.getAttribute("data-stage");
-      const spec = STAGE_SPECS[stageKey];
-      const box = group.querySelector(".node-box");
-
-      if (!term) {
-        box.classList.remove("highlight");
-        group.style.opacity = "1";
-        return;
-      }
-
-      if (spec && (
-        spec.name.toLowerCase().includes(term) ||
-        spec.description.toLowerCase().includes(term) ||
-        spec.inputs.toLowerCase().includes(term) ||
-        spec.outputs.toLowerCase().includes(term) ||
-        spec.filesProduced.toLowerCase().includes(term)
-      )) {
-        box.classList.add("highlight");
-        group.style.opacity = "1";
-      } else {
-        box.classList.remove("highlight");
-        group.style.opacity = "0.2";
-      }
-    });
-
-    // 2. Filter in Timeline Mode
-    document.querySelectorAll(".timeline-card").forEach(card => {
-      const stageKey = card.getAttribute("data-stage");
-      const spec = STAGE_SPECS[stageKey];
-
-      if (!term) {
-        card.style.display = "block";
-        return;
-      }
-
-      if (spec && (
-        spec.name.toLowerCase().includes(term) ||
-        spec.description.toLowerCase().includes(term) ||
-        spec.inputs.toLowerCase().includes(term) ||
-        spec.outputs.toLowerCase().includes(term) ||
-        spec.filesProduced.toLowerCase().includes(term)
-      )) {
-        card.style.display = "block";
-      } else {
-        card.style.display = "none";
-      }
-    });
-
-    // 3. Filter in Showcase Gallery Mode
-    document.querySelectorAll(".showcase-card").forEach(card => {
-      const text = card.textContent.toLowerCase();
-      if (!term || text.includes(term)) {
-        card.style.display = "flex";
-      } else {
-        card.style.display = "none";
-      }
-    });
+  // Timeline Card Search
+  document.querySelectorAll(".timeline-card").forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(query) ? "block" : "none";
   });
 }

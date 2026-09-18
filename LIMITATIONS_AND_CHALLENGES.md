@@ -36,13 +36,16 @@ This document provides a comprehensive, transparent inventory of the system's **
   * **Complex Embedded Elements:** YouTube Community posts featuring multi-image carousels, embedded poll options with live voting percentages, or quiz widgets have rich nested metadata that is flattened into plain text and primary image URLs.
   * **Nested Comment Conversations:** The system monitors the primary author post. It does not monitor or analyze comment replies, audience sentiment, or discussion threads below the post.
 
-### 1.3 Live Stream Ingestion: VODs vs. Real-Time Streaming
-* **Current State:** The system detects active live broadcasts, marks them in the live monitoring table, and fully ingests the completed broadcast as a Video on Demand (VOD) once the stream ends.
-* **Limitations:**
-  * **Real-Time Stream Splitting:** The system does not currently slice and transcribe ongoing RTMP/HLS audio in rolling 60-second chunks while the live rally or speech is actively in progress. Complete transcription and LLM extraction occur only after the broadcast concludes or when a chunk is manually recorded.
+### 1.3 Live Stream Ingestion: Active HLS vs. Scheduled vs. Completed VODs
+* **Current State:** The system distinguishes three live streaming states:
+  1. `LIVE_NOW`: Active broadcasts are detected via `LiveCollector._check_active_live()` at `/@channel/live`. `AudioExtractor.extract_live_segment()` resolves the live HLS stream manifest and captures rolling 120-second audio segments using `ffmpeg`, generating incremental live reports (`is_incremental: true`).
+  2. `UPCOMING`: Scheduled live broadcasts catalog title, description, and scheduled start times without audio processing, generating preliminary broadcast summaries.
+  3. `COMPLETED`: Concluded broadcasts transition to standard VOD archival pipelines with caption checks or full audio transcription.
+* **Limitations & Challenges:**
+  * **Continuous Rolling Summarization:** While 120s segments are captured incrementally, continuous real-time rolling summarization over hours-long marathon broadcasts requires high GPU duty cycles.
 * **Current Mitigation:**
-  * Live status tracking (`is_live: true`) flags ongoing events in the console and UI.
-  * Automated transition to full transcription once the stream finishes.
+  * Rolling 120s HLS audio capture enables incremental progress events via SSE without waiting for broadcast conclusion.
+  * Live status tracking (`live_status: LIVE_NOW`) flags ongoing events in the console and UI.
 
 ### 1.4 Post-Publication Metadata Changes
 * **Current State:** Ingestion is keyed on the YouTube video ID (`item_id`) stored in `state/processed_ids.json`.
@@ -66,12 +69,16 @@ This document provides a comprehensive, transparent inventory of the system's **
   * **Regional Dialect Vocabulary:** In local political speeches (e.g., Uttarakhand regional rallies featuring Garhwali or Kumaoni idioms, colloquial proverbs, or local administrative schemes), standard Whisper models trained predominantly on standard Khari Boli Hindi can misinterpret regional phonetic spellings or mistranslate them into standard Hindi terms.
   * **Code-Switching Attributions:** Rapid mid-sentence transitions between English and Hindi ("Government ne welfare policies ko effectively implement karne ke liye special taskforce constitute ki hai") are transcribed accurately phonetically, but speaker attribution models must carefully balance language detection flags.
 
-### 2.3 Audio Extraction Bandwidth & Disk I/O
-* **Current State:** When full video files are downloaded prior to audio demuxing, network bandwidth and temporary disk storage scale with video resolution.
-* **Limitations:**
-  * Ingesting 20+ multi-hour video streams in a single batch consumes considerable network throughput and generates temporary `.wav` files (16kHz mono uncompressed audio consumes ~115 MB per hour of speech).
+### 2.3 Audio Extraction Bandwidth, Native Caption Bypass & Disk I/O
+* **Current State:** When audio files are downloaded, network bandwidth and temporary disk storage scale with duration.
+* **Native Caption Fast-Path Optimization:**
+  * Prior to downloading audio, `WhisperEngine.fetch_youtube_captions()` checks for official or high-quality auto-generated captions across Hindi (`hi`, `hi-Latn`), English (`en`), Gujarati (`gu`), and Marathi (`mr`).
+  * When available, captions are ingested in ~0.05s, completely bypassing audio download, ffmpeg conversion, and Whisper GPU execution.
+* **Limitations & Challenges:**
+  * For long-form broadcasts lacking native captions, temporary `.wav` files (16kHz mono uncompressed audio consumes ~115 MB per hour) must be created.
 * **Current Mitigation:**
-  * Stream-only audio extraction (`-f ba -x --audio-format wav`) bypasses video downloading entirely, reducing bandwidth by 85–90%. Temporary WAV files are deleted immediately after transcription.
+  * Stream-only audio extraction (`-f ba -x --audio-format wav`) bypasses video downloading entirely, reducing bandwidth by 85–90%.
+  * Temporary WAV files are deleted automatically and immediately within 50ms of transcription completion.
 
 ---
 

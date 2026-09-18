@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>Political YouTube Monitoring — Interactive Pipeline Architecture & Flows</title>
-  <meta name="description" content="End-to-End Multilingual Pipeline Architecture, Grounded Evidence Verification, Hardware Telemetry, and Live Application Demonstration for Political YouTube Channel Activity Monitor.">
+  <meta name="description" content="End-to-End Multilingual Pipeline Architecture, Concurrent Worker Pool, Grounded Evidence Verification, Telemetry Profiling, and Live Application Demonstration.">
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,17 +21,23 @@
       </div>
       <div class="title-group">
         <h1>Political YouTube Activity Monitor</h1>
-        <div class="header-subtitle">End-to-End Multilingual Pipeline, Grounded Evidence, Profiling & Safe Deletion Lifecycle</div>
+        <div class="header-subtitle">Streamlined Worker Concurrency, Grounded Evidence Provenance, Dual Storage & Safe Deletion Lifecycle</div>
       </div>
     </div>
     
     <div class="header-right">
       <div class="search-box">
         <span class="icon">🔍</span>
-        <input type="text" id="search-input" placeholder="Search stages, files, inputs..." autocomplete="off">
+        <input type="text" id="search-input" placeholder="Search stages, files, code..." autocomplete="off">
       </div>
+
+      <!-- Theme Switcher Button (Default Light) -->
+      <button class="theme-toggle-btn" id="btn-theme-toggle" title="Switch between Light and Dark Theme">
+        <span class="icon" id="theme-icon">🌙</span>
+        <span class="text" id="theme-text">Dark Mode</span>
+      </button>
       
-      <!-- View Mode Toggle (Diagram vs Detailed Mobile Cards) -->
+      <!-- View Mode Toggle (Diagram vs Detailed Step Cards) -->
       <button class="view-mode-btn" id="btn-view-mode" title="Toggle between interactive diagram and detailed step cards">
         <span class="icon">📋</span>
         <span class="text">Step-by-Step Flow</span>
@@ -39,13 +45,56 @@
     </div>
   </header>
 
-  <!-- Interactive Diagram Tabs (Horizontally Scrollable on Mobile) -->
+  <!-- Real-Time Item Lifecycle Track Bar -->
+  <section class="status-track-container" aria-label="Item Processing Lifecycle Transitions">
+    <div class="status-track-label">
+      <span>⚡ Lifecycle Transitions:</span>
+    </div>
+    <div class="status-track-steps">
+      <div class="track-step step-queued" data-stage="queue_dispatch" title="Items discovered and pushed to concurrent ThreadPoolExecutor queue">
+        <span class="step-dot"></span>
+        <span>1. QUEUED</span>
+      </div>
+      <span class="track-arrow">➔</span>
+      <div class="track-step step-download" data-stage="download" title="Native caption bypass (~0.05s) or 16kHz audio stream download">
+        <span class="step-dot"></span>
+        <span>2. DOWNLOADING</span>
+      </div>
+      <span class="track-arrow">➔</span>
+      <div class="track-step step-transcribe" data-stage="transcription" title="Faster-Whisper CUDA / CPU fallback with VAD filtering & word timestamps">
+        <span class="step-dot"></span>
+        <span>3. TRANSCRIBING</span>
+      </div>
+      <span class="track-arrow">➔</span>
+      <div class="track-step step-analyze" data-stage="llm_analysis" title="Ollama Dual-Engine extraction (Gemma 3 / Qwen) with 420s chunking">
+        <span class="step-dot"></span>
+        <span>4. ANALYZING</span>
+      </div>
+      <span class="track-arrow">➔</span>
+      <div class="track-step step-report" data-stage="evidence_validation" title="Levenshtein fuzzy matching & deep YouTube timestamp URL links">
+        <span class="step-dot"></span>
+        <span>5. EVIDENCE GROUNDING</span>
+      </div>
+      <span class="track-arrow">➔</span>
+      <div class="track-step step-completed" data-stage="reports" title="Atomic File-First NVMe + MongoDB persistence & SSE live broadcast">
+        <span class="step-dot"></span>
+        <span>6. REPORT READY</span>
+      </div>
+      <span class="track-arrow">|</span>
+      <div class="track-step step-failed" data-stage="dedup" title="Item-level failure isolation: error recorded in state/timings without stopping other batch workers">
+        <span class="step-dot"></span>
+        <span>RETRY / ISOLATED FAILURE</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Diagram Tabs (Horizontally Scrollable) -->
   <nav class="tab-bar-container">
     <div class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="full">
         <span class="tab-icon">🌐</span>
         <span class="tab-label">Complete Pipeline Swimlanes</span>
-        <span class="badge">E2E</span>
+        <span class="badge">E2E & Concurrency</span>
       </button>
       <button class="tab-btn" data-tab="flows">
         <span class="tab-icon">🔀</span>
@@ -60,17 +109,17 @@
       <button class="tab-btn" data-tab="profiling">
         <span class="tab-icon">⏱️</span>
         <span class="tab-label">Processing-Time Profiler</span>
-        <span class="badge">Microsecond</span>
+        <span class="badge">Telemetry</span>
       </button>
       <button class="tab-btn" data-tab="storage">
         <span class="tab-icon">📁</span>
         <span class="tab-label">File-First Storage Tree</span>
-        <span class="badge">NVMe Data</span>
+        <span class="badge">NVMe + MongoDB</span>
       </button>
       <button class="tab-btn" data-tab="deletion">
         <span class="tab-icon">🛡️</span>
         <span class="tab-label">Safe Deletion & Audit</span>
-        <span class="badge">2-Step</span>
+        <span class="badge">2-Step Token</span>
       </button>
       <button class="tab-btn highlight-tab" data-tab="screenshots">
         <span class="tab-icon">📸</span>
@@ -87,7 +136,7 @@
 
   <!-- Mobile Quick Action Banner -->
   <div class="mobile-hint-bar" id="mobile-hint-bar">
-    <span>💡 Tap any stage to inspect technical specs & demonstration screenshots</span>
+    <span>💡 Tap any stage to inspect technical specs, code references & demonstration previews</span>
   </div>
 
   <!-- Main Viewport Area -->
@@ -97,7 +146,7 @@
       <!-- Interactive SVG Canvas View -->
       <div class="diagram-canvas" id="diagram-canvas"></div>
 
-      <!-- Step-by-Step Detailed Card / Timeline View (Mobile & Desktop) -->
+      <!-- Step-by-Step Detailed Card / Timeline View -->
       <div class="timeline-container" id="timeline-container" style="display: none;"></div>
 
       <!-- Live Demonstration Showcase Gallery -->
@@ -118,12 +167,14 @@
       <div class="legend-overlay" id="legend-overlay">
         <div class="legend-title">Pipeline Flows</div>
         <div class="legend-items">
-          <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span> <span>Video Pipeline</span></div>
-          <div class="legend-item"><span class="legend-dot" style="background:#ec4899"></span> <span>Shorts Pipeline</span></div>
-          <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> <span>Post (Audio-free)</span></div>
-          <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> <span>Live Streaming</span></div>
-          <div class="legend-item"><span class="legend-dot" style="background:#10b981"></span> <span>Faster-Whisper CUDA</span></div>
-          <div class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> <span>Ollama Dual-Engine LLM</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#2563eb"></span> <span>Video Pipeline</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#db2777"></span> <span>Shorts Pipeline</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span> <span>Post (Audio-free)</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#dc2626"></span> <span>Live Streaming (HLS)</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#059669"></span> <span>Faster-Whisper CUDA</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#d97706"></span> <span>Ollama Dual-Engine LLM</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#0891b2"></span> <span>Evidence Citations</span></div>
+          <div class="legend-item"><span class="legend-dot" style="background:#4f46e5"></span> <span>File-First & MongoDB</span></div>
         </div>
       </div>
     </div>
@@ -169,7 +220,7 @@
         </div>
 
         <div class="info-section">
-          <span class="section-label">Files Produced (NVMe Storage Schema)</span>
+          <span class="section-label">Files & Collections Produced</span>
           <div class="tag-list" id="drawer-files-list"></div>
         </div>
 
@@ -191,7 +242,7 @@
         </div>
 
         <div class="info-section">
-          <span class="section-label">Code Implementation Reference</span>
+          <span class="section-label">Current Code Implementation</span>
           <div class="code-ref-pill" id="drawer-code"></div>
         </div>
 
