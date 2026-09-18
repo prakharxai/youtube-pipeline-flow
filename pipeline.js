@@ -120,7 +120,7 @@ const STAGE_SPECS = {
     category: "Worker Pool",
     type: "PARALLEL",
     color: "#7c3aed",
-    demoImage: "assets/01_live_monitoring.png",
+    demoImage: "assets/04_live_processing.png",
     demoCaption: "Concurrent execution across multiple worker threads with live status tracking.",
     description: "Batches all discovered activities matching the target window and enqueues them into a ThreadPoolExecutor (max_workers=3). Emits instant QUEUED ProgressEvents via SSE for real-time frontend monitoring.",
     inputs: "List of matching (ActivityItem, ChannelConfig) tuples, max_workers setting",
@@ -143,7 +143,7 @@ const STAGE_SPECS = {
     category: "Speech Optimization",
     type: "FAST PATH",
     color: "#059669",
-    demoImage: "assets/03_transcript_inspection.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "Native Hindi & English captions retrieved in ~0.05s, bypassing audio download and Whisper CUDA inference.",
     description: "Attempts to fetch official or auto-generated YouTube captions directly using youtube-transcript-api. Checks Hindi (hi, hi-Latn), English (en), Gujarati (gu), Marathi (mr). If present, saves ~99% processing time and achieves zero WER script confusion.",
     inputs: "item_id",
@@ -158,8 +158,8 @@ const STAGE_SPECS = {
       "language": "hi",
       "language_probability": 1.0,
       "duration": 1794.0,
-      "segment_count": 312,
-      "fast_path_used": true
+      "source": "native_youtube_captions",
+      "fetch_time_seconds": 0.048
     }
   },
   "download": {
@@ -167,7 +167,7 @@ const STAGE_SPECS = {
     category: "Ingestion Phase",
     type: "PARALLEL",
     color: "#2563eb",
-    demoImage: "assets/01_live_monitoring.png",
+    demoImage: "assets/04_live_processing.png",
     demoCaption: "Acquires audio streams for items lacking native YouTube captions.",
     description: "Downloads high-efficiency Opus audio streams for Videos, Shorts, and completed Livestreams via yt-dlp. Uses player_client=android,web to bypass YouTube restrictions.",
     inputs: "Video URL, item_id",
@@ -188,7 +188,7 @@ const STAGE_SPECS = {
     category: "Live Streaming",
     type: "LIVE ONLY",
     color: "#dc2626",
-    demoImage: "assets/01_live_monitoring.png",
+    demoImage: "assets/04_live_processing.png",
     demoCaption: "Real-time 120s chunk extraction from active HLS streams during live broadcasts.",
     description: "Handles active livestreams (LIVE_NOW). Resolves live audio stream manifest URL with yt-dlp -g and slices a 120-second rolling audio chunk using ffmpeg (-t 120 -vn -acodec pcm_s16le). Enables incremental analysis during active broadcasts.",
     inputs: "Live stream URL, item_id, duration_seconds=120",
@@ -210,7 +210,7 @@ const STAGE_SPECS = {
     category: "Audio Processing",
     type: "PARALLEL",
     color: "#db2777",
-    demoImage: "assets/03_transcript_inspection.png",
+    demoImage: "assets/04_live_processing.png",
     demoCaption: "Transcodes audio to 16kHz mono WAV; immediately cleans up WAV after Whisper to avoid disk bloat.",
     description: "Transcodes extracted audio into standard 16kHz mono 16-bit PCM WAV (ffmpeg -ar 16000 -ac 1). Provides standard input required by faster-whisper. Performs immediate file deletion upon transcription completion.",
     inputs: "Raw audio stream, scratch file path",
@@ -255,7 +255,7 @@ const STAGE_SPECS = {
     category: "Speech-to-Text",
     type: "PARALLEL (CUDA)",
     color: "#059669",
-    demoImage: "assets/03_transcript_inspection.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "CUDA-accelerated speech-to-text with Silero VAD, word-level timestamps, and Hindi domain prompting.",
     description: "Performs local speech-to-text with faster-whisper. Runs on CUDA (compute_type=float16) with automatic CPU fallback (int8). Uses Silero VAD filtering to reject non-speech audio, extracts word-level timestamps, and uses Hindi political domain initial prompts.",
     inputs: "16kHz Mono WAV, item_id",
@@ -279,7 +279,7 @@ const STAGE_SPECS = {
     category: "AI Extraction",
     type: "PARALLEL",
     color: "#d97706",
-    demoImage: "assets/04_report_grounding.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "Structured political extraction using Gemma 3 12B with Qwen3 8B fallback and 420s chunking.",
     description: "Extracts structured political intelligence using Ollama. Uses Gemma 3 12B (primary) with Qwen3 8B (fallback). Videos <= 420s run single-pass; videos > 420s trigger 420s sliding chunking. Stage 2 synthesizes grounded executive summary referencing [EVID-xxx] tokens.",
     inputs: "ActivityItem, TranscriptData (or post_text)",
@@ -304,7 +304,7 @@ const STAGE_SPECS = {
     category: "Verification Phase",
     type: "PARALLEL",
     color: "#0891b2",
-    demoImage: "assets/04_report_grounding.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "Zero-hallucination guarantee: Verifies every AI claim against verbatim transcript text.",
     description: "Cross-verifies AI extracted claims, announcements, and summaries against verbatim transcript text. Uses 3-tier matching: 1) Direct substring match 2) 5-word sub-phrase match 3) >60% significant word overlap. Generates clickable timestamp URLs (&t=XXs) and renders inline [#] markers.",
     inputs: "ItemAnalysis, TranscriptData (or post_text)",
@@ -328,7 +328,7 @@ const STAGE_SPECS = {
     category: "Citation Engine",
     type: "PARALLEL",
     color: "#0891b2",
-    demoImage: "assets/04_report_grounding.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "Interactive clickable timestamp links directly jump to the exact video playback second.",
     description: "Synthesizes human-readable time labels (e.g., 'YouTube Video — 14:02', 'YouTube Live — 01:23:45') and builds direct YouTube video URLs with second offsets. Injects superscript citation anchors [#] into rendered HTML and Markdown executive summaries.",
     inputs: "Verified EvidenceObjects, timestamp_start, activity_type",
@@ -348,7 +348,7 @@ const STAGE_SPECS = {
     category: "Output Phase",
     type: "PARALLEL / BATCH",
     color: "#4f46e5",
-    demoImage: "assets/04_report_grounding.png",
+    demoImage: "assets/03_grounded_intelligence_detail.png",
     demoCaption: "Self-contained standalone HTML, JSON, and Markdown reports generated with zero external CSS/JS dependencies.",
     description: "Generates 3 tiers of reports: 1) Individual Item Reports (HTML + JSON) 2) Channel Daily Reports (HTML + JSON) 3) Overall Daily Executive Report (HTML + JSON + Markdown). HTML reports are 100% self-contained with embedded responsive CSS.",
     inputs: "ActivityItem, ItemAnalysis, TranscriptData, ChannelConfig, date_str",
@@ -370,7 +370,7 @@ const STAGE_SPECS = {
     category: "Persistence Phase",
     type: "GLOBAL",
     color: "#4f46e5",
-    demoImage: "assets/02_daily_archive.png",
+    demoImage: "assets/05_data_management.png",
     demoCaption: "Predictable NVMe file hierarchy ensures complete auditability; MongoDB enables high-speed UI queries.",
     description: "Provides dual-tier persistence. Tier 1: NVMe disk file-first storage with atomic writes (.tmp + replace) for human-readable auditability. Tier 2: MongoDB document persistence for high-speed indexing, search, and dashboard aggregation.",
     inputs: "All system models and deliverables",
@@ -391,7 +391,7 @@ const STAGE_SPECS = {
     category: "API & Monitoring",
     type: "REAL-TIME",
     color: "#059669",
-    demoImage: "assets/01_live_monitoring.png",
+    demoImage: "assets/01_analytics_dashboard.png",
     demoCaption: "Live Server-Sent Events stream (/api/events) drives real-time progress cards in the UI dashboard.",
     description: "Streams live ProgressEvents over Server-Sent Events (/api/events). Maintains active_items_tracker dictionary in FastAPI memory, updating stage, status, percentage, timings, and error payloads for every concurrent worker item.",
     inputs: "ProgressEvent emitted by pipeline",
@@ -414,7 +414,7 @@ const STAGE_SPECS = {
     category: "Governance & Cleanup",
     type: "GOVERNANCE",
     color: "#dc2626",
-    demoImage: "assets/02_daily_archive.png",
+    demoImage: "assets/05_data_management.png",
     demoCaption: "2-step cryptographic confirmation prevents accidental data loss; writes append-only audit trail.",
     description: "Provides controlled data purge capabilities. Step 1: Preview impact across scopes (CHANNEL, DATE, DATE_RANGE, WATCHLIST) counting affected activities, transcripts, and reports. Step 2: Requires explicit cryptographic token (CONFIRM_DELETE) to execute atomic purge and writes append-only audit records.",
     inputs: "DeletionScope, target identifier, confirmation_token",
@@ -451,9 +451,13 @@ let startY = 0;
 
 // Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
-  initTheme();
-  // Check URL query param or hash for initial tab deep-linking
+  // Check URL query param or hash for initial tab & theme deep-linking
   const urlParams = new URLSearchParams(window.location.search);
+  const themeParam = urlParams.get("theme");
+  if (themeParam === "dark" || themeParam === "light") {
+    currentTheme = themeParam;
+  }
+  initTheme();
   const tabParam = urlParams.get("tab") || window.location.hash.replace("#", "");
   if (tabParam) {
     const matchingTab = document.querySelector(`.tab-btn[data-tab="${tabParam}"]`);
@@ -463,9 +467,33 @@ document.addEventListener("DOMContentLoaded", () => {
       currentTab = tabParam;
     }
   }
+  const viewParam = urlParams.get("view");
+  if (viewParam === "timeline" || viewParam === "diagram") {
+    currentViewMode = viewParam;
+  }
   setupEventListeners();
+  updateViewModeButtonUI();
   renderCurrentView();
+
+  const drawerParam = urlParams.get("drawer");
+  if (drawerParam && STAGE_SPECS[drawerParam]) {
+    openDrawer(drawerParam);
+  }
 });
+
+function updateViewModeButtonUI() {
+  const btnViewMode = document.getElementById("btn-view-mode");
+  if (!btnViewMode) return;
+  const icon = btnViewMode.querySelector(".icon");
+  const text = btnViewMode.querySelector(".text");
+  if (currentViewMode === "timeline") {
+    if (icon) icon.textContent = "🌐";
+    if (text) text.textContent = "Diagram View";
+  } else {
+    if (icon) icon.textContent = "📋";
+    if (text) text.textContent = "Step-by-Step Flow";
+  }
+}
 
 /**
  * Initializes and toggles Light/Dark theme (Default Light)
@@ -531,15 +559,7 @@ function setupEventListeners() {
   if (btnViewMode) {
     btnViewMode.addEventListener("click", () => {
       currentViewMode = currentViewMode === "diagram" ? "timeline" : "diagram";
-      const icon = btnViewMode.querySelector(".icon");
-      const text = btnViewMode.querySelector(".text");
-      if (currentViewMode === "timeline") {
-        icon.textContent = "🌐";
-        text.textContent = "Diagram View";
-      } else {
-        icon.textContent = "📋";
-        text.textContent = "Step-by-Step Flow";
-      }
+      updateViewModeButtonUI();
       renderCurrentView();
     });
   }
@@ -745,6 +765,16 @@ function renderCurrentView() {
 // =============================================================================
 // 5. SVG Helper Functions (Refined Layout & No Text Overlap)
 // =============================================================================
+function escapeXml(unsafe) {
+  if (!unsafe) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 function svgNode(x, y, w, h, stageKey, title, subtitle, color, badgeText, statusDotColor) {
   const pillBg = `${color}14`;
   const pillBorder = `${color}45`;
@@ -752,28 +782,39 @@ function svgNode(x, y, w, h, stageKey, title, subtitle, color, badgeText, status
   const badgeWidth = badgeText ? Math.max(50, badgeText.length * 6.6 + 12) : 0;
   const badgeX = w - badgeWidth - 8;
 
+  const subLines = (subtitle || "").split(/\r?\n|\\n/);
+  const subTspans = subLines.map((line, idx) => 
+    `<tspan x="16" dy="${idx === 0 ? 0 : 15}">${escapeXml(line)}</tspan>`
+  ).join("");
+
   return `
     <g class="node-group" data-stage="${stageKey}" transform="translate(${x}, ${y})">
       <rect class="node-box" width="${w}" height="${h}" />
       <line x1="0" y1="0" x2="0" y2="${h}" stroke="${color}" stroke-width="4.5" stroke-linecap="round" />
       <circle cx="16" cy="22" r="4" fill="${dotColor}" />
-      <text class="node-title" x="26" y="26">${title}</text>
-      <text class="node-subtitle" x="16" y="46">${subtitle}</text>
+      <text class="node-title" x="26" y="26">${escapeXml(title)}</text>
+      <text class="node-subtitle" x="16" y="46">${subTspans}</text>
       ${badgeText ? `
         <rect x="${badgeX}" y="9" width="${badgeWidth}" height="20" rx="5" fill="${pillBg}" stroke="${pillBorder}" stroke-width="1" />
-        <text class="node-badge" x="${badgeX + badgeWidth / 2}" y="23" fill="${color}" text-anchor="middle">${badgeText}</text>
+        <text class="node-badge" x="${badgeX + badgeWidth / 2}" y="23" fill="${color}" text-anchor="middle">${escapeXml(badgeText)}</text>
       ` : ""}
     </g>
   `;
 }
 
 function svgSwimlane(x, y, w, h, title, subtitle) {
+  const isNarrow = w < 1000;
+  const headerHeight = (isNarrow && subtitle) ? 42 : 32;
   return `
     <g class="swimlane-group">
       <rect class="swimlane-box" x="${x}" y="${y}" width="${w}" height="${h}" />
-      <rect class="swimlane-header-box" x="${x}" y="${y}" width="${w}" height="32" />
-      <text class="swimlane-title" x="${x + 18}" y="${y + 21}">${title}</text>
-      ${subtitle ? `<text class="swimlane-desc" x="${x + w - 18}" y="${y + 21}" text-anchor="end">${subtitle}</text>` : ""}
+      <rect class="swimlane-header-box" x="${x}" y="${y}" width="${w}" height="${headerHeight}" />
+      <text class="swimlane-title" x="${x + 18}" y="${y + 21}">${escapeXml(title)}</text>
+      ${subtitle ? (
+        isNarrow
+          ? `<text class="swimlane-desc" x="${x + 18}" y="${y + 35}">${escapeXml(subtitle)}</text>`
+          : `<text class="swimlane-desc" x="${x + w - 18}" y="${y + 21}" text-anchor="end">${escapeXml(subtitle)}</text>`
+      ) : ""}
     </g>
   `;
 }
@@ -1006,28 +1047,28 @@ function renderActivityFlowsSVG() {
     ${svgNode(1220, 485, 230, 55, "reports", "Post Report", "Community Post HTML", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- FLOW 4: YOUTUBE LIVE STREAMS -->
-    ${svgSwimlane(20, 650, 1520, 200, "FLOW 4: YOUTUBE LIVE STREAMS (ACTIVE LIVE_NOW, UPCOMING SCHEDULES, COMPLETED VODS)", "Active HLS 120s segment capture vs Scheduled broadcast intent vs Full VOD archival")}
-    ${svgNode(40, 695, 230, 55, "discovery", "Live Tab Detector", "/live & /streams tabs", "#dc2626", "DISCOVERY", "#dc2626")}
+    ${svgSwimlane(20, 660, 1520, 235, "FLOW 4: YOUTUBE LIVE STREAMS (ACTIVE LIVE_NOW, UPCOMING SCHEDULES, COMPLETED VODS)", "Active HLS 120s segment capture vs Scheduled broadcast intent vs Full VOD archival")}
+    ${svgNode(40, 755, 230, 54, "discovery", "Live Tab Detector", "/live & /streams tabs", "#dc2626", "DISCOVERY", "#dc2626")}
     
     <!-- 3 Live Status Branches -->
-    ${svgCurvedEdge(270, 722, 310, 690, "arrow-red", "#dc2626")}
-    ${svgNode(310, 665, 250, 50, "live_segmenter", "LIVE_NOW: HLS Slicer", "120s Rolling Audio Slice", "#dc2626", "ACTIVE STREAM", "#dc2626")}
+    ${svgCurvedEdge(270, 782, 310, 729, "arrow-red", "#dc2626")}
+    ${svgNode(310, 705, 250, 48, "live_segmenter", "LIVE_NOW: HLS Slicer", "120s Rolling Audio Slice", "#dc2626", "ACTIVE STREAM", "#dc2626")}
     
-    ${svgCurvedEdge(270, 722, 310, 750, "arrow-amber", "#d97706")}
-    ${svgNode(310, 725, 250, 50, "discovery", "UPCOMING: Schedule", "Metadata & Intent Catalog", "#d97706", "SCHEDULED", "#d97706")}
+    ${svgEdge(270, 782, 310, 782, "arrow-amber", "#d97706")}
+    ${svgNode(310, 758, 250, 48, "discovery", "UPCOMING: Schedule", "Metadata & Intent Catalog", "#d97706", "SCHEDULED", "#d97706")}
 
-    ${svgCurvedEdge(270, 722, 310, 810, "arrow-blue", "#2563eb")}
-    ${svgNode(310, 785, 250, 50, "download", "COMPLETED: VOD", "Full Broadcast Archival", "#2563eb", "VOD ARCHIVE", "#2563eb")}
+    ${svgCurvedEdge(270, 782, 310, 835, "arrow-blue", "#2563eb")}
+    ${svgNode(310, 811, 250, 48, "download", "COMPLETED: VOD", "Full Broadcast Archival", "#2563eb", "VOD ARCHIVE", "#2563eb")}
 
-    ${svgEdge(560, 690, 630, 747, "arrow-green", "#059669")}
-    ${svgEdge(560, 750, 630, 747, "arrow-amber", "#d97706")}
-    ${svgEdge(560, 810, 630, 747, "arrow-blue", "#2563eb")}
+    ${svgCurvedEdge(560, 729, 630, 782, "arrow-green", "#059669")}
+    ${svgEdge(560, 782, 630, 782, "arrow-amber", "#d97706")}
+    ${svgCurvedEdge(560, 835, 630, 782, "arrow-blue", "#2563eb")}
 
-    ${svgNode(630, 720, 260, 55, "transcription", "Speech & Intent Engine", "Whisper OR Metadata LLM", "#059669", "PROCESSING", "#059669")}
-    ${svgEdge(890, 747, 940, 747, "arrow-cyan", "#0891b2")}
-    ${svgNode(940, 720, 260, 55, "evidence_validation", "Live Timestamp Citation", "Exact livestream playback", "#0891b2", "GROUNDING", "#0891b2")}
-    ${svgEdge(1200, 747, 1250, 747, "arrow-purple", "#4f46e5")}
-    ${svgNode(1250, 720, 240, 55, "reports", "Live Report (incremental)", "Dynamic Live Status Card", "#4f46e5", "REPORT", "#4f46e5")}
+    ${svgNode(630, 755, 260, 54, "transcription", "Speech & Intent Engine", "Whisper OR Metadata LLM", "#059669", "PROCESSING", "#059669")}
+    ${svgEdge(890, 782, 940, 782, "arrow-cyan", "#0891b2")}
+    ${svgNode(940, 755, 260, 54, "evidence_validation", "Live Timestamp Citation", "Exact livestream playback", "#0891b2", "GROUNDING", "#0891b2")}
+    ${svgEdge(1200, 782, 1250, 782, "arrow-purple", "#4f46e5")}
+    ${svgNode(1250, 755, 240, 54, "reports", "Live Report (incremental)", "Dynamic Live Status Card", "#4f46e5", "REPORT", "#4f46e5")}
   </svg>
   `;
 }
@@ -1042,44 +1083,46 @@ function renderEvidenceGroundingSVG() {
 
     ${svgSwimlane(20, 30, 1440, 760, "GROUNDED CITATIONS & EVIDENCE PROVENANCE PIPELINE", "Strict Zero-Hallucination Programmatic Verification (Transcript -> [EVID-xxx] Extraction -> Fuzzy Matching -> YouTube Anchors)")}
 
-    ${svgNode(60, 110, 280, 85, "transcription", "1. Verbatim Speech Tokens", "faster-whisper extracts word timestamps\\n(start, end, text tokens, probability)", "#059669", "INPUT TOKENS", "#059669")}
-    ${svgEdge(340, 152, 420, 152, "arrow-green", "#059669")}
+    <!-- Row 1: Forward Extraction Pipeline -->
+    ${svgNode(60, 100, 290, 85, "transcription", "1. Speech Word Tokens", "faster-whisper extracts word timestamps\\n(start, end, text tokens, probability)", "#059669", "TOKENS", "#059669")}
+    ${svgEdge(350, 142, 405, 142, "arrow-green", "#059669")}
 
-    ${svgNode(420, 110, 300, 85, "llm_analysis", "2. Dual-Engine LLM Extraction", "Ollama outputs structured JSON with\\nexplicit [EVID-xxx] evidence ID tags", "#d97706", "LLM STAGE", "#d97706")}
-    ${svgEdge(720, 152, 800, 152, "arrow-amber", "#d97706")}
+    ${svgNode(405, 100, 300, 85, "llm_analysis", "2. Dual-Engine LLM", "Ollama outputs structured JSON with\\nexplicit [EVID-xxx] evidence ID tags", "#d97706", "LLM STAGE", "#d97706")}
+    ${svgEdge(705, 142, 760, 142, "arrow-amber", "#d97706")}
 
-    ${svgNode(800, 110, 280, 85, "evidence_validation", "3. Evidence Object Catalog", "Builds Dict[str, EvidenceObject]\\nindexed by EVID-001, EVID-002, etc.", "#0891b2", "CATALOGING", "#0891b2")}
-    ${svgEdge(1080, 152, 1160, 152, "arrow-cyan", "#0891b2")}
+    ${svgNode(760, 100, 290, 85, "evidence_validation", "3. Evidence Catalog", "Builds Dict[str, EvidenceObject]\\nindexed by EVID-001, EVID-002, etc.", "#0891b2", "CATALOG", "#0891b2")}
+    ${svgEdge(1050, 142, 1105, 142, "arrow-cyan", "#0891b2")}
 
-    ${svgNode(1160, 110, 260, 85, "evidence_validation", "4. Fuzzy Matcher Gate", "Tier 1: Substring Match\\nTier 2: 5-Word Prefix\\nTier 3: >60% Word Overlap", "#0891b2", "VERIFICATION", "#0891b2")}
+    ${svgNode(1105, 100, 315, 85, "evidence_validation", "4. Verification Gate", "Tier 1: Substring Match\\nTier 2: 5-Word Prefix Match\\nTier 3: >60% Word Overlap", "#0891b2", "VERIFY", "#0891b2")}
 
-    ${svgCurvedEdge(1290, 195, 1290, 320, "arrow-cyan", "#0891b2", true)}
+    ${svgCurvedEdge(1262, 185, 1262, 310, "arrow-cyan", "#0891b2", true)}
 
-    ${svgNode(1160, 320, 260, 85, "citation_generation", "5. Timestamp URL Builder", "Calculates seconds: sec = int(t_start)\\nBuilds: https://youtube.com/watch?v=ID&t=XXs", "#2563eb", "ANCHOR ENGINE", "#2563eb")}
-    ${svgEdge(1160, 362, 1080, 362, "arrow-blue", "#2563eb")}
+    <!-- Row 2: Backward Synthesis Pipeline -->
+    ${svgNode(1105, 310, 315, 85, "citation_generation", "5. Timestamp Anchors", "Calculates seconds: sec = int(t_start)\\nBuilds: https://youtube.com/watch?v=ID&t=XXs", "#2563eb", "ANCHORS", "#2563eb")}
+    ${svgEdge(1105, 352, 1050, 352, "arrow-blue", "#2563eb")}
 
-    ${svgNode(800, 320, 280, 85, "citation_generation", "6. Citation Label Formatter", "Formats readable type labels:\\n'YouTube Video — 14:02'\\n'YouTube Live — 01:23:45'", "#2563eb", "LABEL SYNTHESIS", "#2563eb")}
-    ${svgEdge(800, 362, 720, 362, "arrow-blue", "#2563eb")}
+    ${svgNode(760, 310, 290, 85, "citation_generation", "6. Citation Formatter", "Formats readable type labels:\\n'YouTube Video — 14:02'\\n'YouTube Live — 01:23:45'", "#2563eb", "LABELS", "#2563eb")}
+    ${svgEdge(760, 352, 705, 352, "arrow-blue", "#2563eb")}
 
-    ${svgNode(420, 320, 300, 85, "reports", "7. Inline Marker Injection", "Replaces [EVID-xxx] with clickable superscripts:\\nHTML: <sup><a href='...'>[1]</a></sup>\\nMarkdown: [^1]: [MM:SS](url)", "#4f46e5", "INLINE MARKERS", "#4f46e5")}
-    ${svgEdge(420, 362, 340, 362, "arrow-purple", "#4f46e5")}
+    ${svgNode(405, 310, 300, 85, "reports", "7. Marker Injection", "Replaces [EVID-xxx] with clickable links:\\nHTML: <sup>[1]</sup> and [MM:SS](url)\\nDirect YouTube timestamp jump", "#4f46e5", "MARKERS", "#4f46e5")}
+    ${svgEdge(405, 352, 350, 352, "arrow-purple", "#4f46e5")}
 
-    ${svgNode(60, 320, 280, 85, "reports", "8. Grounded Deliverable", "Standalone HTML item report & JSON\\nwith 100% verified interactive links", "#4f46e5", "FINAL OUTPUT", "#4f46e5")}
+    ${svgNode(60, 310, 290, 85, "reports", "8. Grounded Report", "Standalone HTML item report & JSON\\nwith 100% verified interactive links", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- Verification Logic Detail Cards -->
-    ${svgSwimlane(60, 470, 660, 280, "VERIFICATION LOGIC & ALGORITHMIC TOLERANCE", "src/engine/evidence_verifier.py")}
-    <text class="swimlane-desc" x="90" y="530" font-size="12">• Level 1 (Direct Substring): Checks if quoted text exists verbatim in lowercased transcript.</text>
-    <text class="swimlane-desc" x="90" y="565" font-size="12">• Level 2 (Sub-Phrase Match): Checks if first 5 consecutive words appear contiguously.</text>
-    <text class="swimlane-desc" x="90" y="600" font-size="12">• Level 3 (Word Overlap): Computes significant words (>3 chars) presence ratio >= 60%.</text>
-    <text class="swimlane-desc" x="90" y="635" font-size="12">• Anchor Clamping: Clamps start/end timestamps within [0, video_duration_seconds].</text>
-    <text class="swimlane-desc" x="90" y="670" font-size="12">• Hallucination Rejection: If all 3 tiers fail, verified=false and citation URL is stripped.</text>
+    ${svgSwimlane(60, 460, 660, 290, "VERIFICATION LOGIC & ALGORITHMIC TOLERANCE", "src/engine/evidence_verifier.py")}
+    <text class="swimlane-desc" x="90" y="525" font-size="12">• Level 1 (Direct Substring): Checks if quoted text exists verbatim in lowercased transcript.</text>
+    <text class="swimlane-desc" x="90" y="560" font-size="12">• Level 2 (Sub-Phrase Match): Checks if first 5 consecutive words appear contiguously.</text>
+    <text class="swimlane-desc" x="90" y="595" font-size="12">• Level 3 (Word Overlap): Computes significant words (>3 chars) presence ratio >= 60%.</text>
+    <text class="swimlane-desc" x="90" y="630" font-size="12">• Anchor Clamping: Clamps start/end timestamps within [0, video_duration_seconds].</text>
+    <text class="swimlane-desc" x="90" y="665" font-size="12">• Hallucination Rejection: If all 3 tiers fail, verified=false and citation URL is stripped.</text>
 
-    ${svgSwimlane(760, 470, 660, 280, "PROVENANCE SAMPLE DATA OBJECTS", "Rendered Grounded Statement Structure")}
-    <text class="swimlane-desc" x="790" y="530" font-size="12" font-family="monospace" fill="#2563eb">"text": "Rail project allocation increased by 40% for southern tribal districts."</text>
-    <text class="swimlane-desc" x="790" y="565" font-size="12" font-family="monospace" fill="#059669">"timestamp_start": 842.0, "timestamp_end": 855.0, "verified": true</text>
-    <text class="swimlane-desc" x="790" y="600" font-size="12" font-family="monospace" fill="#0891b2">"citation_url": "https://www.youtube.com/watch?v=EvF9mhGyMps&t=842s"</text>
-    <text class="swimlane-desc" x="790" y="635" font-size="12" font-family="monospace" fill="#7c3aed">"citation_label": "YouTube Video — 14:02"</text>
-    <text class="swimlane-desc" x="790" y="670" font-size="12" font-family="monospace" fill="#d97706">"rendered_text_html": "...tribal districts.<sup><a href='...'>[1]</a></sup>"</text>
+    ${svgSwimlane(760, 460, 660, 290, "PROVENANCE SAMPLE DATA OBJECTS", "Rendered Grounded Statement Structure")}
+    <text class="swimlane-desc" x="790" y="525" font-size="12" font-family="monospace" fill="#2563eb">"text": "Rail project allocation increased by 40% for southern tribal districts."</text>
+    <text class="swimlane-desc" x="790" y="560" font-size="12" font-family="monospace" fill="#059669">"timestamp_start": 842.0, "timestamp_end": 855.0, "verified": true</text>
+    <text class="swimlane-desc" x="790" y="595" font-size="12" font-family="monospace" fill="#0891b2">"citation_url": "https://www.youtube.com/watch?v=EvF9mhGyMps&amp;t=842s"</text>
+    <text class="swimlane-desc" x="790" y="630" font-size="12" font-family="monospace" fill="#7c3aed">"citation_label": "YouTube Video — 14:02"</text>
+    <text class="swimlane-desc" x="790" y="665" font-size="12" font-family="monospace" fill="#d97706">"rendered_text_html": "...tribal districts.&lt;sup&gt;&lt;a href='...'&gt;[1]&lt;/a&gt;&lt;/sup&gt;"</text>
   </svg>
   `;
 }
@@ -1097,26 +1140,26 @@ function renderTimingProfilerSVG() {
     <!-- Visual Timeline Track -->
     ${svgSwimlane(60, 90, 1360, 140, "STAGE TIMING BREAKDOWN (SAVED TO state/timings/{item_id}.json & MONGODB)", "Sum of Stages vs Real Wall-Clock Overlap")}
     
-    ${svgNode(80, 140, 160, 55, "discovery", "1. Metadata", "0.25s - 0.60s", "#2563eb", "DISCOVERY", "#2563eb")}
-    ${svgEdge(240, 167, 270, 167, "arrow-blue", "#2563eb")}
+    ${svgNode(80, 140, 200, 55, "discovery", "1. Metadata", "0.25s - 0.60s", "#2563eb", "DISCOVERY", "#2563eb")}
+    ${svgEdge(280, 167, 305, 167, "arrow-blue", "#2563eb")}
 
-    ${svgNode(270, 140, 180, 55, "download", "2. Down / Caption", "0.05s (fast) / 3.2s", "#0891b2", "MEDIA", "#0891b2")}
-    ${svgEdge(450, 167, 480, 167, "arrow-cyan", "#0891b2")}
+    ${svgNode(305, 140, 200, 55, "download", "2. Ingest", "0.05s (fast) / 3.2s", "#0891b2", "MEDIA", "#0891b2")}
+    ${svgEdge(505, 167, 530, 167, "arrow-cyan", "#0891b2")}
 
-    ${svgNode(480, 140, 180, 55, "audio_norm", "3. Audio Resample", "0.40s - 1.10s", "#db2777", "FFMPEG", "#db2777")}
-    ${svgEdge(660, 167, 690, 167, "arrow-pink", "#db2777")}
+    ${svgNode(530, 140, 200, 55, "audio_norm", "3. Resample", "0.40s - 1.10s", "#db2777", "FFMPEG", "#db2777")}
+    ${svgEdge(730, 167, 755, 167, "arrow-pink", "#db2777")}
 
-    ${svgNode(690, 140, 200, 55, "transcription", "4. Whisper STT", "RTF ~0.08x (CUDA)", "#059669", "CUDA VRAM", "#059669")}
-    ${svgEdge(890, 167, 920, 167, "arrow-green", "#059669")}
+    ${svgNode(755, 140, 205, 55, "transcription", "4. Whisper", "RTF ~0.08x (CUDA)", "#059669", "CUDA STT", "#059669")}
+    ${svgEdge(960, 167, 985, 167, "arrow-green", "#059669")}
 
-    ${svgNode(920, 140, 200, 55, "llm_analysis", "5. Ollama LLM", "420s Chunks (Gemma 3)", "#d97706", "LLM TOKENS", "#d97706")}
-    ${svgEdge(1120, 167, 1150, 167, "arrow-amber", "#d97706")}
+    ${svgNode(985, 140, 205, 55, "llm_analysis", "5. Ollama", "420s Chunks (Gemma 3)", "#d97706", "LLM TOKENS", "#d97706")}
+    ${svgEdge(1190, 167, 1215, 167, "arrow-amber", "#d97706")}
 
-    ${svgNode(1150, 140, 230, 55, "evidence_validation", "6. Ground & Reports", "0.15s (Atomic Write)", "#4f46e5", "DELIVERABLE", "#4f46e5")}
+    ${svgNode(1215, 140, 200, 55, "evidence_validation", "6. Grounding", "0.15s (Atomic Write)", "#4f46e5", "REPORT", "#4f46e5")}
 
     <!-- Two Metric Cards -->
     ${svgSwimlane(60, 260, 660, 480, "WALL-CLOCK vs SUM-OF-STAGES PROFILING", "ActivityTiming Data Model")}
-    <text class="swimlane-desc" x="90" y="320" font-size="13" font-weight="700" fill="#2563eb">ActivityTiming Class Definition:</text>
+    <text class="swimlane-desc" x="90" y="325" font-size="13" font-weight="700" fill="#2563eb">ActivityTiming Class Definition:</text>
     <text class="swimlane-desc" x="90" y="355" font-size="12" font-family="monospace">• activity_id: str</text>
     <text class="swimlane-desc" x="90" y="385" font-size="12" font-family="monospace">• activity_type: ActivityType (VIDEO, SHORT, POST, LIVE)</text>
     <text class="swimlane-desc" x="90" y="415" font-size="12" font-family="monospace">• wall_clock_duration_seconds: float (True end-to-end time)</text>
@@ -1130,7 +1173,7 @@ function renderTimingProfilerSVG() {
     <text class="swimlane-desc" x="90" y="675" font-size="12" font-family="monospace">• error: Optional[str]</text>
 
     ${svgSwimlane(760, 260, 660, 480, "HARDWARE INSTRUMENTATION & VRAM TELEMETRY", "CUDA, CPU & Storage Metrics")}
-    <text class="swimlane-desc" x="790" y="320" font-size="13" font-weight="700" fill="#d97706">Telemetry Trackers:</text>
+    <text class="swimlane-desc" x="790" y="325" font-size="13" font-weight="700" fill="#d97706">Telemetry Trackers:</text>
     <text class="swimlane-desc" x="790" y="355" font-size="12">• CUDA Peak VRAM Usage: Monitored during Whisper STT execution (float16 allocates ~1.8GB - 3.2GB).</text>
     <text class="swimlane-desc" x="790" y="395" font-size="12">• Ollama GPU Offload: Gemma 3 12B offloaded to NVIDIA GPU layer; tracks tokens/sec generation speed.</text>
     <text class="swimlane-desc" x="790" y="435" font-size="12">• Real-Time Factor (RTF): audio_duration / stt_execution_time (Values < 0.10x indicate faster-than-real-time).</text>
@@ -1151,22 +1194,23 @@ function renderStorageHierarchySVG() {
 
     ${svgSwimlane(20, 30, 1440, 760, "DUAL-TIER STORAGE ARCHITECTURE: NVMe FILE-FIRST AUDIT + MONGODB ENGINE", "Predictable local directory hierarchy with atomic writes (.tmp + rename) synchronized with MongoDB")}
 
-    <!-- Left Box: File-First NVMe Hierarchy -->
-    ${svgSwimlane(50, 90, 670, 670, "TIER 1: NVMe FILE-FIRST DIRECTORY HIERARCHY (GROUND TRUTH)", "Predictable, human-readable JSON & standalone HTML")}
-    <text class="swimlane-desc" x="80" y="145" font-size="13" font-family="monospace" font-weight="700" fill="#2563eb">data/</text>
-    <text class="swimlane-desc" x="110" y="175" font-size="12" font-family="monospace">├── channels/{channel_id}/channel.json (Channel metadata & stats)</text>
-    <text class="swimlane-desc" x="110" y="205" font-size="12" font-family="monospace">├── raw/{item_id}_raw.json (Immutable snapshot of raw scraping metadata)</text>
-    <text class="swimlane-desc" x="110" y="235" font-size="12" font-family="monospace">├── activities/YYYY/MM/DD/ (Partitioned by publication date)</text>
-    <text class="swimlane-desc" x="140" y="265" font-size="12" font-family="monospace">├── videos/{item_id}.json</text>
-    <text class="swimlane-desc" x="140" y="295" font-size="12" font-family="monospace">├── shorts/{item_id}.json</text>
-    <text class="swimlane-desc" x="140" y="325" font-size="12" font-family="monospace">├── posts/{item_id}.json</text>
-    <text class="swimlane-desc" x="140" y="355" font-size="12" font-family="monospace">└── live/{item_id}.json</text>
-    <text class="swimlane-desc" x="110" y="385" font-size="12" font-family="monospace">├── transcripts/{item_id}.json (Segments, word tokens, timestamps)</text>
-    <text class="swimlane-desc" x="110" y="415" font-size="12" font-family="monospace">├── analysis/{item_id}.json (Grounded claims, topics, entities)</text>
-    <text class="swimlane-desc" x="110" y="445" font-size="12" font-family="monospace">└── reports/</text>
-    <text class="swimlane-desc" x="140" y="475" font-size="12" font-family="monospace">├── items/{item_id}.html & .json (Interactive item deliverables)</text>
-    <text class="swimlane-desc" x="140" y="505" font-size="12" font-family="monospace">├── channel/{channel_id}/{date}.html & .json (Channel daily)</text>
-    <text class="swimlane-desc" x="140" y="535" font-size="12" font-family="monospace">└── daily/{date}.html, .json, .md (Overall executive overview)</text>
+    <!-- Left Box: Local Directory Tree -->
+    ${svgSwimlane(60, 90, 670, 670, "TIER 1: NVMe FILE-FIRST HIERARCHY", "src/storage/file_store.py (Predictable, human-readable JSON & HTML)")}
+    
+    <text class="swimlane-desc" x="80" y="150" font-size="13" font-family="monospace" font-weight="700" fill="#2563eb">data/</text>
+    <text class="swimlane-desc" x="110" y="180" font-size="12" font-family="monospace">├── channels/{channel_id}/channel.json (Channel metadata & stats)</text>
+    <text class="swimlane-desc" x="110" y="210" font-size="12" font-family="monospace">├── raw/{item_id}_raw.json (Immutable snapshot of raw scraping metadata)</text>
+    <text class="swimlane-desc" x="110" y="240" font-size="12" font-family="monospace">├── activities/YYYY/MM/DD/ (Partitioned by publication date)</text>
+    <text class="swimlane-desc" x="130" y="270" font-size="12" font-family="monospace">├── videos/{item_id}.json</text>
+    <text class="swimlane-desc" x="130" y="300" font-size="12" font-family="monospace">├── shorts/{item_id}.json</text>
+    <text class="swimlane-desc" x="130" y="330" font-size="12" font-family="monospace">├── posts/{item_id}.json</text>
+    <text class="swimlane-desc" x="130" y="360" font-size="12" font-family="monospace">└── live/{item_id}.json</text>
+    <text class="swimlane-desc" x="110" y="390" font-size="12" font-family="monospace">├── transcripts/{item_id}.json (Segments, word tokens, timestamps)</text>
+    <text class="swimlane-desc" x="110" y="420" font-size="12" font-family="monospace">├── analysis/{item_id}.json (Grounded claims, topics, entities)</text>
+    <text class="swimlane-desc" x="110" y="450" font-size="12" font-family="monospace">└── reports/</text>
+    <text class="swimlane-desc" x="130" y="480" font-size="12" font-family="monospace">├── items/{item_id}.html & .json (Interactive item deliverables)</text>
+    <text class="swimlane-desc" x="130" y="510" font-size="12" font-family="monospace">├── channel/{channel_id}/{date}.html & .json (Channel daily)</text>
+    <text class="swimlane-desc" x="130" y="540" font-size="12" font-family="monospace">└── daily/{date}.html, .json, .md (Overall executive overview)</text>
     
     <text class="swimlane-desc" x="80" y="575" font-size="13" font-family="monospace" font-weight="700" fill="#7c3aed">state/</text>
     <text class="swimlane-desc" x="110" y="605" font-size="12" font-family="monospace">├── runs/{run_id}.json (Run telemetry, counters, error logs)</text>
@@ -1175,33 +1219,33 @@ function renderStorageHierarchySVG() {
     <text class="swimlane-desc" x="110" y="695" font-size="12" font-family="monospace">└── audit/deletion_{audit_id}.json (Append-only deletion records)</text>
 
     <!-- Right Box: MongoDB Collections -->
-    ${svgSwimlane(760, 90, 670, 670, "TIER 2: MONGODB DOCUMENT PERSISTENCE & FAST UI INDEXING", "src/storage/mongodb.py (High-speed aggregations, text search & UI dashboard)")}
+    ${svgSwimlane(760, 90, 670, 670, "TIER 2: MONGODB DOCUMENT PERSISTENCE", "src/storage/mongodb.py (High-speed aggregations, text search & dashboard)")}
     
-    <text class="swimlane-desc" x="790" y="145" font-size="13" font-weight="700" fill="#059669">Synchronized MongoDB Collections:</text>
+    <text class="swimlane-desc" x="790" y="150" font-size="13" font-weight="700" fill="#059669">Synchronized MongoDB Collections:</text>
     
-    <text class="swimlane-desc" x="790" y="185" font-size="12" font-family="monospace" fill="#2563eb">1. db.channels</text>
-    <text class="swimlane-desc" x="820" y="210" font-size="11">Indexed on id. Stores handle, subscriber count, avatar URL, category tags.</text>
+    <text class="swimlane-desc" x="790" y="190" font-size="12" font-family="monospace" fill="#2563eb">1. db.channels</text>
+    <text class="swimlane-desc" x="820" y="215" font-size="11">Indexed on id. Stores handle, subscriber count, avatar URL, category tags.</text>
 
-    <text class="swimlane-desc" x="790" y="245" font-size="12" font-family="monospace" fill="#2563eb">2. db.activities</text>
-    <text class="swimlane-desc" x="820" y="270" font-size="11">Indexed on item_id, channel_id, published_at, activity_type. High-speed dashboard filtering.</text>
+    <text class="swimlane-desc" x="790" y="250" font-size="12" font-family="monospace" fill="#2563eb">2. db.activities</text>
+    <text class="swimlane-desc" x="820" y="275" font-size="11">Indexed on item_id, channel_id, published_at, activity_type. Dashboard filtering.</text>
 
-    <text class="swimlane-desc" x="790" y="305" font-size="12" font-family="monospace" fill="#059669">3. db.transcripts</text>
-    <text class="swimlane-desc" x="820" y="330" font-size="11">Indexed on item_id. Full-text search over speech segments and word tokens.</text>
+    <text class="swimlane-desc" x="790" y="310" font-size="12" font-family="monospace" fill="#059669">3. db.transcripts</text>
+    <text class="swimlane-desc" x="820" y="335" font-size="11">Indexed on item_id. Full-text search over speech segments and word tokens.</text>
 
-    <text class="swimlane-desc" x="790" y="365" font-size="12" font-family="monospace" fill="#d97706">4. db.analyses</text>
-    <text class="swimlane-desc" x="820" y="390" font-size="11">Indexed on item_id. Stores structured claims, promises, announcements, and entities.</text>
+    <text class="swimlane-desc" x="790" y="370" font-size="12" font-family="monospace" fill="#d97706">4. db.analyses</text>
+    <text class="swimlane-desc" x="820" y="395" font-size="11">Indexed on item_id. Stores structured claims, promises, announcements, and entities.</text>
 
-    <text class="swimlane-desc" x="790" y="425" font-size="12" font-family="monospace" fill="#4f46e5">5. db.reports</text>
-    <text class="swimlane-desc" x="820" y="450" font-size="11">Indexed on report_id (item:ID, channel:ID:DATE, daily:DATE). Fast delivery of HTML & JSON.</text>
+    <text class="swimlane-desc" x="790" y="430" font-size="12" font-family="monospace" fill="#4f46e5">5. db.reports</text>
+    <text class="swimlane-desc" x="820" y="455" font-size="11">Indexed on report_id (item:ID, channel:ID:DATE, daily:DATE). Fast delivery of HTML & JSON.</text>
 
-    <text class="swimlane-desc" x="790" y="485" font-size="12" font-family="monospace" fill="#7c3aed">6. db.runs & db.timings</text>
-    <text class="swimlane-desc" x="820" y="510" font-size="11">Stores run progress, active workers, items completed, and stage duration benchmarks.</text>
+    <text class="swimlane-desc" x="790" y="490" font-size="12" font-family="monospace" fill="#7c3aed">6. db.runs & db.timings</text>
+    <text class="swimlane-desc" x="820" y="515" font-size="11">Stores run progress, active workers, items completed, and stage duration benchmarks.</text>
 
-    <text class="swimlane-desc" x="790" y="545" font-size="12" font-family="monospace" fill="#dc2626">7. db.audit_logs</text>
-    <text class="swimlane-desc" x="820" y="570" font-size="11">Append-only audit trail recording deletion operations, tokens, and affected records.</text>
+    <text class="swimlane-desc" x="790" y="550" font-size="12" font-family="monospace" fill="#dc2626">7. db.audit_logs</text>
+    <text class="swimlane-desc" x="820" y="575" font-size="11">Append-only audit trail recording deletion operations, tokens, and affected records.</text>
 
     <!-- Atomic Sync Arrow -->
-    ${svgEdge(720, 400, 760, 400, "arrow-purple", "#7c3aed")}
+    ${svgEdge(730, 400, 760, 400, "arrow-purple", "#7c3aed")}
   </svg>
   `;
 }
@@ -1216,46 +1260,42 @@ function renderDeletionAuditSVG() {
 
     ${svgSwimlane(20, 30, 1440, 760, "SAFE DATA DELETION & APPEND-ONLY AUDIT LIFECYCLE", "2-Step Confirmation with Impact Preview & Cryptographic Confirmation Token (src/storage/deletion_service.py)")}
 
-    <!-- Step 1: Request Preview -->
-    ${svgNode(60, 100, 280, 85, "safe_deletion", "1. Request Scope Preview", "User specifies scope:\\nCHANNEL, DATE, DATE_RANGE, WATCHLIST", "#2563eb", "STEP 1: PREVIEW", "#2563eb")}
-    ${svgEdge(340, 142, 430, 142, "arrow-blue", "#2563eb")}
+    <!-- Row 1: Preview to Purge -->
+    ${svgNode(60, 100, 310, 85, "safe_deletion", "1. Scope Preview", "User specifies scope:\\nCHANNEL, DATE, DATE_RANGE, WATCHLIST", "#2563eb", "PREVIEW", "#2563eb")}
+    ${svgEdge(370, 142, 415, 142, "arrow-blue", "#2563eb")}
 
-    <!-- Step 2: Impact Analysis -->
-    ${svgNode(430, 100, 300, 85, "safe_deletion", "2. Impact Calculator", "Counts affected activities, transcripts,\\nanalyses, reports, and NVMe disk files", "#0891b2", "PREVIEW OBJECT", "#0891b2")}
-    ${svgEdge(730, 142, 820, 142, "arrow-cyan", "#0891b2")}
+    ${svgNode(415, 100, 310, 85, "safe_deletion", "2. Impact Calculator", "Counts affected activities, transcripts,\\nanalyses, reports, and NVMe disk files", "#0891b2", "CALCULATOR", "#0891b2")}
+    ${svgEdge(725, 142, 770, 142, "arrow-cyan", "#0891b2")}
 
-    <!-- Step 3: Confirmation Token Gate -->
-    ${svgNode(820, 100, 290, 85, "safe_deletion", "3. Cryptographic Token Gate", "Requires explicit user confirmation:\\nMust send token: 'CONFIRM_DELETE'", "#dc2626", "AUTH GATE", "#dc2626")}
-    ${svgEdge(1110, 142, 1190, 142, "arrow-red", "#dc2626")}
+    ${svgNode(770, 100, 310, 85, "safe_deletion", "3. Cryptographic Gate", "Requires explicit user confirmation:\\nMust send token: 'CONFIRM_DELETE'", "#dc2626", "AUTH GATE", "#dc2626")}
+    ${svgEdge(1080, 142, 1125, 142, "arrow-red", "#dc2626")}
 
-    <!-- Step 4: Atomic Purge Execution -->
-    ${svgNode(1190, 100, 240, 85, "safe_deletion", "4. Cascading Atomic Purge", "Removes NVMe files & deletes\\nfrom MongoDB collections", "#dc2626", "ATOMIC PURGE", "#dc2626")}
+    ${svgNode(1125, 100, 295, 85, "safe_deletion", "4. Cascading Purge", "Removes NVMe files &amp; deletes\\nfrom MongoDB collections", "#dc2626", "PURGE", "#dc2626")}
 
-    ${svgCurvedEdge(1310, 185, 1310, 310, "arrow-purple", "#7c3aed", true)}
+    ${svgCurvedEdge(1272, 185, 1272, 310, "arrow-purple", "#7c3aed", true)}
 
-    <!-- Step 5: Append-Only Audit Record -->
-    ${svgNode(1050, 310, 380, 85, "safe_deletion", "5. Append-Only Audit Log", "Writes immutable record to state/audit/deletion_{id}.json\\nand mirrors to MongoDB db.audit_logs", "#7c3aed", "AUDIT RECORD", "#7c3aed")}
-    ${svgEdge(1050, 352, 930, 352, "arrow-green", "#059669")}
+    <!-- Row 2: Audit and Broadcast -->
+    ${svgNode(880, 310, 540, 85, "safe_deletion", "5. Append-Only Audit Log", "Writes immutable record to state/audit/deletion_{id}.json\\nand mirrors to MongoDB db.audit_logs collection", "#7c3aed", "AUDIT RECORD", "#7c3aed")}
+    ${svgEdge(880, 352, 790, 352, "arrow-green", "#059669")}
 
-    <!-- Step 6: Live UI & Health Refresh -->
-    ${svgNode(600, 310, 330, 85, "telemetry_sse", "6. UI Real-Time Telemetry Refresh", "Broadcasts updated channel statistics, refreshed\\ndate archives, and recalculated disk counters", "#059669", "STATE SYNC", "#059669")}
+    ${svgNode(350, 310, 440, 85, "telemetry_sse", "6. UI Real-Time Telemetry Refresh", "Broadcasts updated channel statistics, refreshed\\ndate archives, and recalculated disk counters", "#059669", "STATE SYNC", "#059669")}
 
     <!-- Detail Explanations -->
     ${svgSwimlane(60, 460, 660, 290, "DELETION PREVIEW SCHEMA (PRE-DELETION AUDIT)", "DeletionPreview Object")}
-    <text class="swimlane-desc" x="90" y="520" font-size="12" font-family="monospace">• preview_id: str, scope: DeletionScope</text>
+    <text class="swimlane-desc" x="90" y="525" font-size="12" font-family="monospace">• preview_id: str, scope: DeletionScope</text>
     <text class="swimlane-desc" x="90" y="555" font-size="12" font-family="monospace">• channels: List[str], start_date: str, end_date: str</text>
-    <text class="swimlane-desc" x="90" y="590" font-size="12" font-family="monospace">• total_activities: int, videos_count: int, shorts_count: int</text>
-    <text class="swimlane-desc" x="90" y="625" font-size="12" font-family="monospace">• transcripts_count: int, analyses_count: int, reports_count: int</text>
-    <text class="swimlane-desc" x="90" y="660" font-size="12" font-family="monospace">• affected_item_ids: List[str] (Audit trace)</text>
-    <text class="swimlane-desc" x="90" y="695" font-size="12" font-family="monospace">• confirmation_required: "CONFIRM_DELETE"</text>
+    <text class="swimlane-desc" x="90" y="585" font-size="12" font-family="monospace">• total_activities: int, videos_count: int, shorts_count: int</text>
+    <text class="swimlane-desc" x="90" y="615" font-size="12" font-family="monospace">• transcripts_count: int, analyses_count: int, reports_count: int</text>
+    <text class="swimlane-desc" x="90" y="645" font-size="12" font-family="monospace">• affected_item_ids: List[str] (Audit trace)</text>
+    <text class="swimlane-desc" x="90" y="675" font-size="12" font-family="monospace">• confirmation_required: "CONFIRM_DELETE"</text>
 
     ${svgSwimlane(760, 460, 660, 290, "IMMUTABLE AUDIT RECORD SCHEMA", "DeletionAuditRecord Object")}
-    <text class="swimlane-desc" x="790" y="520" font-size="12" font-family="monospace">• audit_id: str, operation: "DELETE", scope: str</text>
+    <text class="swimlane-desc" x="790" y="525" font-size="12" font-family="monospace">• audit_id: str, operation: "DELETE", scope: str</text>
     <text class="swimlane-desc" x="790" y="555" font-size="12" font-family="monospace">• channels: List[str], items_deleted: int, artifacts_deleted: int</text>
-    <text class="swimlane-desc" x="790" y="590" font-size="12" font-family="monospace">• started_at: ISO-8601, completed_at: ISO-8601</text>
-    <text class="swimlane-desc" x="790" y="625" font-size="12" font-family="monospace">• user_confirmed: true, status: "COMPLETED"</text>
-    <text class="swimlane-desc" x="790" y="660" font-size="12" font-family="monospace">• Storage path: state/audit/deletion_{audit_id}.json</text>
-    <text class="swimlane-desc" x="790" y="695" font-size="12" font-family="monospace">• MongoDB mirror: db.audit_logs.insert_one(audit_record)</text>
+    <text class="swimlane-desc" x="790" y="585" font-size="12" font-family="monospace">• started_at: ISO-8601, completed_at: ISO-8601</text>
+    <text class="swimlane-desc" x="790" y="615" font-size="12" font-family="monospace">• user_confirmed: true, status: "COMPLETED"</text>
+    <text class="swimlane-desc" x="790" y="645" font-size="12" font-family="monospace">• Storage path: state/audit/deletion_{audit_id}.json</text>
+    <text class="swimlane-desc" x="790" y="675" font-size="12" font-family="monospace">• MongoDB mirror: db.audit_logs.insert_one(audit_record)</text>
   </svg>
   `;
 }
@@ -1324,11 +1364,11 @@ function renderShowcaseView() {
 
   const showcaseItems = [
     {
-      title: "1. Live Monitoring & Concurrent Telemetry",
+      title: "1. Live Ingestion & Processing Console",
       badge: "ACTIVE ENGINE",
       color: "#059669",
-      img: "assets/01_live_monitoring.png",
-      desc: "Real-time Server-Sent Events (SSE) live monitoring interface showing active channel discovery, concurrent worker item processing, real-time stage transitions, and telemetry logs.",
+      img: "assets/04_live_processing.png",
+      desc: "Real-time live monitoring interface showing active channel discovery, concurrent worker item processing, real-time stage transitions, and telemetry logs.",
       features: [
         "Concurrent multi-item progress tracking (QUEUED -> COMPLETED)",
         "Real-time factor (RTF) and elapsed duration instrumentation",
@@ -1350,29 +1390,42 @@ function renderShowcaseView() {
       ]
     },
     {
-      title: "3. CUDA Speech-to-Text & Transcript Inspector",
-      badge: "VERBATIM STT",
+      title: "3. Grounded Intelligence & Evidence Detail",
+      badge: "ZERO HALLUCINATION",
       color: "#0891b2",
-      img: "assets/03_transcript_inspection.png",
-      desc: "Full-text transcript inspection view with millisecond-precision word timestamps, language probability indicators, and native YouTube caption shortcut indicators.",
+      img: "assets/03_grounded_intelligence_detail.png",
+      desc: "Full-text transcript inspection view with millisecond-precision word timestamps, verbatim grounding, and clickable YouTube timestamp links (&t=XXs).",
       features: [
         "Verbatim multilingual speech transcript (Devanagari Hindi, English)",
         "Word-level start/end timestamp anchors for precise grounding",
         "Fast-path native caption shortcut tag (~0.05s retrieval)",
-        "Searchable keyword highlighting across speech segments"
+        "Programmatic verification (exact match, prefix, 60% overlap)"
       ]
     },
     {
-      title: "4. Grounded AI Extraction & Deep Timestamp Citations",
-      badge: "ZERO HALLUCINATION",
+      title: "4. Political Analytics & Sentiment Dashboard",
+      badge: "ANALYTICS",
       color: "#d97706",
-      img: "assets/04_report_grounding.png",
-      desc: "Executive summary and policy claim extraction with strict Levenshtein programmatic verification against speech transcripts. Displays clickable YouTube timestamp links.",
+      img: "assets/01_analytics_dashboard.png",
+      desc: "Aggregated intelligence dashboard displaying channel comparison metrics, sentiment trajectory, key political entities, and topical volume distributions.",
       features: [
-        "Programmatic cross-verification (exact match, prefix, 60% overlap)",
-        "Interactive YouTube timestamp citation links (&t=XXs)",
-        "Categorized policy claims, announcements, promises, and stats",
-        "Named entities: politicians, parties, departments, schemes"
+        "Interactive trend charts with multi-channel comparisons",
+        "Sentiment analysis and topic classification",
+        "Top political entities, schemes, and policy keyword mentions",
+        "Daily executive intelligence overview summary cards"
+      ]
+    },
+    {
+      title: "5. Safe Data Management & Audit Lifecycle",
+      badge: "GOVERNANCE",
+      color: "#dc2626",
+      img: "assets/05_data_management.png",
+      desc: "Two-step safe deletion console with impact preview calculations, cryptographic token confirmation ('CONFIRM_DELETE'), and append-only audit trail logging.",
+      features: [
+        "2-step impact calculation across Channels, Dates, and Watchlists",
+        "Atomic disk & database cascading purge safeguards",
+        "Cryptographic confirmation token gate preventing accidental loss",
+        "Append-only audit trail mirrored to NVMe JSON and MongoDB"
       ]
     }
   ];
