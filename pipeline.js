@@ -452,6 +452,17 @@ let startY = 0;
 // Initialize on DOM Ready
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
+  // Check URL query param or hash for initial tab deep-linking
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get("tab") || window.location.hash.replace("#", "");
+  if (tabParam) {
+    const matchingTab = document.querySelector(`.tab-btn[data-tab="${tabParam}"]`);
+    if (matchingTab) {
+      document.querySelectorAll(".tab-btn").forEach(t => t.classList.remove("active"));
+      matchingTab.classList.add("active");
+      currentTab = tabParam;
+    }
+  }
   setupEventListeners();
   renderCurrentView();
 });
@@ -501,6 +512,7 @@ function setupEventListeners() {
       tabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       currentTab = tab.getAttribute("data-tab");
+      history.replaceState(null, "", `#${currentTab}`);
       resetViewport();
       renderCurrentView();
     });
